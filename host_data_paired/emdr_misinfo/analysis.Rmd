@@ -1,0 +1,334 @@
+---
+title: "EMDR and misinformation"
+output:
+  html_document: default
+  pdf_document: default
+date: '2023-03-06'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lmtest)
+library(sandwich)
+library(multiwayvcov)
+library(ebal)
+library(haven)
+myPalette = c("#006BA6","#8aa399", "#FFBC42", "#7A456C")
+```
+
+## Load data 
+
+```{r, echo=FALSE}
+# replication data 
+rep.dat = read.csv("./replication_clean.csv")[,-1]
+```
+
+Reproduce replication study results: 
+```{r, echo=FALSE}
+# reproduce replication study results
+# reproduce Table 1 
+rep.dat %>% group_by(condition) %>% 
+  summarize(vivid_pre_mean = mean(prevividness), vivid_pre_sd = sd(prevividness), 
+            vivid_post_mean = mean(postvividness), vivid_post_sd = sd(postvividness), 
+            emotion_pre_mean = mean(preemotionality), emotion_pre_sd = sd(preemotionality), 
+            emotion_post_mean = mean(postemotionality), emotion_post_sd = sd(postemotionality))
+# reproduce figure 1 
+summary(lm(totalcorrect ~ condition, data = rep.dat))
+summary(lm(totalmisinfo ~ condition, data = rep.dat))
+```
+
+
+
+
+```{r, echo=FALSE}
+# original data
+org.dat = read.csv("./original_clean.csv")[,-1]
+```
+
+```{r, echo=FALSE}
+# reproduce original study results
+# reproduce Table 1
+org.dat %>% group_by(condition) %>% 
+  summarize(vivid_pre_mean = mean(prevividness), vivid_pre_sd = sd(prevividness), 
+            vivid_post_mean = mean(postvividness), vivid_post_sd = sd(postvividness), 
+            emotion_pre_mean = mean(preemotionality), emotion_pre_sd = sd(preemotionality), 
+            emotion_post_mean = mean(postemotionality), emotion_post_sd = sd(postemotionality))
+# reproduce figure 1
+summary(lm(totalcorrect ~ condition, data = org.dat))
+summary(lm(totalmisinfo ~ condition, data = org.dat))
+```
+
+### Exploratory analysis
+```{r, echo=TRUE} 
+rep.mean = rep.dat %>% select(age, gender, #bdi, 
+                              prevividness, preemotionality) %>%  #, 
+                              # postvividness, postemotionality) %>%  
+  summarize(across(everything(), mean, na.rm = TRUE))
+org.mean = org.dat %>% select(age, gender, #bdi, 
+                              prevividness, preemotionality) %>%  # 
+                              # postvividness, postemotionality) %>%   
+  summarize(across(everything(), mean, na.rm = TRUE))
+# summarize the sample mean of features
+mean.compare.df = rbind(data.frame("colnames" = names(rep.mean), "replication_mean" = as.numeric(rep.mean), 
+                                   "original_mean" = as.numeric(org.mean))) 
+# visualize
+mean.compare.df %>% ggplot(aes(x=original_mean, y=replication_mean)) +
+  geom_point() + theme_bw() + 
+  geom_abline(slope=1, intercept=0, col='red', linetype='dashed')
+# t-test
+rep.sd = rep.dat %>% select(age, gender, #bdi, 
+                              prevividness, preemotionality) %>%  #, 
+                              # postvividness, postemotionality) %>%  
+  summarize(across(everything(), sd, na.rm = TRUE))
+org.sd = org.dat %>% select(age, gender, #bdi, 
+                              prevividness, preemotionality) %>%  #, 
+                              # postvividness, postemotionality) %>%  
+  summarize(across(everything(), sd, na.rm = TRUE))
+t.stat = - (rep.mean - org.mean) / (rep.sd^2/nrow(rep.dat) + org.sd^2/nrow(org.dat))
+ci.sd = sqrt(rep.sd^2/nrow(rep.dat) + org.sd^2/nrow(org.dat)) * qnorm(0.975)
+t.df = data.frame("difference_in_mean" = - as.numeric(rep.mean) + as.numeric(org.mean), 
+                  "ci_width" = as.numeric(ci.sd), "names" = names(rep.mean))
+t.df$names = factor(t.df$names) 
+tdiff.plot = t.df %>% ggplot(aes(y = names, x = difference_in_mean)) + 
+  geom_point(size=1.5) + theme_bw() + 
+  geom_errorbarh(aes(xmin=difference_in_mean - ci_width, xmax=difference_in_mean + ci_width), size = 0.5, height=.4) + 
+  geom_vline(xintercept=0, col='red', linetype='dashed') + 
+  theme(text= element_text(family="Times", size=15),
+        axis.text= element_text(family="Times", size=12),
+        strip.text.x= element_text(family="Times", size=12),
+        strip.text.y= element_text(family="Times", size=12),
+        legend.title = element_text(family="Times", size=15),
+        legend.position="top", 
+        plot.title = element_text(family="Times", size=15, hjust = 0.5)) + 
+  xlab("Difference in mean") + ylab("")
+tdiff.plot
+ggsave("covariate_diff_plot.pdf", plot = tdiff.plot, width=3.5, height = 2.5, units='in')
+
+
+# distribution of BDI
+all.dat = rbind(org.dat %>% mutate(study="original"), rep.dat %>% mutate(study="replication")) 
+all.dat$study = as.factor(all.dat$study)
+all.dat %>% ggplot(aes(x=bdi, group = study, fill=study)) + 
+  geom_histogram(position = position_dodge(1))
+```
+
+```{r, echo=TRUE}
+med.df = rbind(rep.dat %>% mutate(study="rep", n = 1) %>% 
+                 mutate("measure" = prevividness, "name" = "vividness", "time" = "before") %>%
+                 select(measure, name, time, study, condition, n), 
+               rep.dat %>% mutate(study="rep", n = 1) %>% 
+                 mutate("measure" = preemotionality, "name" = "emotionality", "time" = "before") %>%
+                 select(measure, name, time, study, condition, n), 
+               rep.dat %>% mutate(study="rep", n = 1) %>% 
+                 mutate("measure" = postvividness, "name" = "vividness", "time" = "after") %>%
+                 select(measure, name, time, study, condition, n), 
+               rep.dat %>% mutate(study="rep", n = 1) %>% 
+                 mutate("measure" = postemotionality, "name" = "emotionality", "time" = "after") %>%
+                 select(measure, name, time, study, condition, n), 
+               org.dat %>% mutate(study="org", n = 1) %>% 
+                 mutate("measure" = prevividness, "name" = "vividness", "time" = "before") %>%
+                 select(measure, name, time, study, condition, n), 
+               org.dat %>% mutate(study="org", n = 1) %>% 
+                 mutate("measure" = preemotionality, "name" = "emotionality", "time" = "before") %>%
+                 select(measure, name, time, study, condition, n), 
+               org.dat %>% mutate(study="org", n = 1) %>% 
+                 mutate("measure" = postvividness, "name" = "vividness", "time" = "after") %>%
+                 select(measure, name, time, study, condition, n), 
+               org.dat %>% mutate(study="org", n = 1) %>% 
+                 mutate("measure" = postemotionality, "name" = "emotionality", "time" = "after") %>%
+                 select(measure, name, time, study, condition, n))
+
+med.df.tp = med.df %>% group_by(name, time, study, condition ) %>% 
+  summarize(measure.mean = mean(measure), measure.sd = sd(measure), n = sum(n))
+
+med.df.tp$study = as.factor(med.df.tp$study)
+med.df.tp$condition = as.factor(med.df.tp$condition)
+levels(med.df.tp$condition) = c("0" = "C", "1" = "T")
+med.df.tp$time = factor(med.df.tp$time, levels = c("before", "after"))
+
+med.plot = med.df.tp %>% ggplot(aes(x=interaction(condition, study), y=measure.mean)) +  theme_bw() +
+  geom_bar(aes(fill=time), stat="identity", position=position_dodge(0.8), width=0.6) + 
+  geom_errorbar(aes(ymin=measure.mean-measure.sd/sqrt(n), ymax=measure.mean+measure.sd/sqrt(n), 
+                    group = interaction(study, condition, time)),
+                position=position_dodge(.8), 
+                width=.3, size=0.4,alpha=0.8) + 
+  facet_wrap(vars(name), scales = 'free_y') +
+  scale_fill_manual(values = myPalette[c(3,4)]) + 
+  xlab("experiment condition * study") + ylab("groupwise mean") +
+  theme(text= element_text(family="Times", size=15),
+        axis.text= element_text(family="Times", size=12),
+        strip.text.x= element_text(family="Times", size=12),
+        strip.text.y= element_text(family="Times", size=12),
+        legend.title = element_text(family="Times", size=15),
+        legend.position="top",
+        plot.title = element_text(family="Times", size=12, hjust = 0.5))  
+
+ggsave("mediator_diff_plot_n.pdf", plot = med.plot, width=5, height = 3, units='in')
+```
+
+
+
+### Entropy balancing
+
+```{r, echo=TRUE}
+### entropy balancing
+all.data = rbind(rep.dat, org.dat)
+
+covariate.names = c("study", "age", "gender", "prevividness",    # political / partisan
+                    "preemotionality")
+X = rbind(rep.dat %>% mutate(study=0), 
+          org.dat %>% mutate(study=1)) %>%
+  select(covariate.names) %>% drop_na()
+w = ebalance(Treatment = X$study, X = X[,-1], max.iterations = 200)$w
+# visualize the distribution of weights
+hist(w, breaks = 50)
+
+## add weight to replication data 
+w.df = rep.dat %>% mutate("w" = w)
+```
+ 
+
+### Fitting ANOVA
+ 
+
+```{r}
+
+# Fit ANOVA for total correct
+rep.model <- lm(totalcorrect ~ condition, data = rep.dat) 
+coeftest(rep.model)
+
+org.model <- lm(totalcorrect ~ condition, data = org.dat)  
+coeftest(org.model)
+
+rep.to.org.model <- lm(totalcorrect ~ condition, data = rep.dat, weights=w)   
+coeftest(rep.to.org.model)
+```
+
+total misinformation
+
+```{r}
+
+# Fit ANOVA for total misinfo
+rep.model <- lm(totalmisinfo ~ condition, data = rep.dat) 
+coeftest(rep.model)
+
+org.model <- lm(totalmisinfo ~ condition, data = org.dat)  
+coeftest(org.model)
+
+rep.to.org.model <- lm(totalmisinfo ~ condition, data = rep.dat, weights=w)   
+coeftest(rep.to.org.model)
+```
+
+### Decomposition and Jackknife inference
+
+```{r}
+decomposition = function(
+    data1, # a data frame for original data
+    data2, # a data frame for replication data
+    analysis_formula, # a formula for OLS
+    treatment_variable, # the name of the focal variable
+    covariate_formula = NULL, # covariates to be balanced
+    mediation_formula = NULL, # covariates + mediators to be balanced
+    clusters = NULL # variables defining clusters.  must contain all variables in the covariate/mediation formulae
+) {
+  if (is_null(clusters)) {
+    group1 = data1
+    group2 = data2
+  } else {
+    group1 = unique(data1[,clusters])
+    group2 = unique(data2[,clusters])
+  }
+  X = model.matrix(formula(covariate_formula), data=bind_rows(group1, group2))[,-1]
+  M = model.matrix(formula(mediation_formula), data=bind_rows(group1, group2))[,-1]
+  S = c(rep(1, nrow(group1)), rep(0, nrow(group2)))
+  group2$w = ebalance(Treatment=S, X=X, print.level=-1)$w # covariate weights
+  group2$o = ebalance(Treatment=S, X=M, print.level=-1)$w # mediation weights
+  # data2weighted = left_join(data2, group2, by=clusters)
+  theta1 = coef(lm(formula(analysis_formula), data=data1))[treatment_variable]
+  theta2 = coef(lm(formula(analysis_formula), data=data2))[treatment_variable]
+  theta2X= coef(lm(formula(analysis_formula), data=data2, weights=group2$w))[treatment_variable]
+  theta2M= coef(lm(formula(analysis_formula), data=data2, weights=group2$o))[treatment_variable]
+  decomp = data.frame(
+    "observed" = theta1 - theta2,
+    "covariates" = theta2X - theta2,
+    "mediators" = theta2M - theta2X,
+    "residual" = theta1 - theta2M
+  )
+  return(list("decomp" = decomp, "w" = group2$w, "o" = group2$o))
+}
+
+
+
+analysis_formula = "totalcorrect ~ condition"
+covariate_formula = "~ age + gender + prevividness + preemotionality"
+mediation_formula = "~ age + gender +  prevividness + preemotionality + (postvividness + postemotionality)*condition"
+# clusters = c("id", "treatment", "practice_religion", "happiness_induced", "mood_induced", "happiness", "religion", "panas", "race")
+results = decomposition(
+  data1 = org.dat,
+  data2 = rep.dat,
+  analysis_formula = analysis_formula,
+  treatment_variable = "condition",
+  covariate_formula = covariate_formula,
+  mediation_formula = mediation_formula,
+  clusters = NULL
+)
+results$decomp
+
+df1 = org.dat %>% mutate(id = 1:nrow(org.dat))
+df2 = rep.dat %>% mutate(id = 1:nrow(rep.dat))
+N1 = nrow(df1)
+N2 = nrow(df2)
+phi1 = phi2 = data.frame()
+# pb = progress_bar$new("Jackknifing [:bar] :percent", total=N1 + N2, width=80)
+for (i in 1:N1) {
+  # pb$tick()
+  phi1 = bind_rows(phi1, decomposition(
+    data1 = org.dat[-i,],
+    data2 = rep.dat,
+    analysis_formula = analysis_formula,
+    treatment_variable = "condition",
+    covariate_formula = covariate_formula,
+    mediation_formula = mediation_formula,
+    clusters = NULL
+  )$decomp)
+}
+for (i in 1:N2) {
+  # pb$tick()
+  phi2 = bind_rows(phi2, decomposition(
+    data1 = org.dat,
+    data2 = rep.dat[-i,],
+    analysis_formula = analysis_formula,
+    treatment_variable = "condition",
+    covariate_formula = covariate_formula,
+    mediation_formula = mediation_formula,
+    clusters = NULL
+  )$decomp)
+}
+SEs = sqrt(apply(phi1, 2, var)*(N1-1)^2/N1 + apply(phi2, 2, var)*(N2-1)^2/N2)
+bounds = cbind(as.numeric(results$decomp),
+              as.numeric(results$decomp) - qnorm(0.95)*SEs,
+              as.numeric(results$decomp) + qnorm(0.95)*SEs) %>% data.frame()
+colnames(bounds) = c("estimate", "low", "high")
+bounds$component = rownames(bounds)
+bd.plot = bounds %>%
+  mutate(component = factor(component, levels = c("observed", "covariates", "mediators", "residual"))) %>%
+  ggplot(aes(x = component, fill = component, y = estimate, ymin = low, ymax = high)) +
+  geom_crossbar(aes(col = component), alpha = 0.5, width=0.4) +
+  theme_bw() + xlab("") + ylab("") + 
+  scale_fill_manual(values = myPalette) + 
+  scale_color_manual(values = myPalette) + 
+  theme(legend.position = "None") +
+  geom_hline(yintercept = 0, lty=2) +
+  # theme(strip.text.x=element_text(size=14.5), axis.text.x=element_text(size=13))+
+  theme(text= element_text(family="Times", size=12),
+        axis.text= element_text(family="Times", size=12), 
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        strip.text.x= element_text(family="Times", size=12),
+        strip.text.y= element_text(family="Times", size=12),
+        legend.title = element_text(family="Times", size=12), 
+        plot.title = element_text(family="Times", size=12, hjust = 0.5))  
+ggsave("decomp_plot.pdf", plot = bd.plot, width=5.5, height = 2, units='in')
+```
+
