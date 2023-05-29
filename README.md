@@ -2,7 +2,23 @@
 <p> awesome-replicability-data
 </h1>
 
-This repository collects publicly available datasets for replicability analysis. Currently, we curate a collection of **paired** individual-level datasets of original and replication studies. We are non-selective in collecting these datasets, i.e., both successful and failed studies are included as long as they are available. We only include studies where paired datsets are publicly available, or where the original paper contains rich summary statistics.
+This repository collects publicly available datasets for replicability analysis. Currently, we curate a collection of **paired** individual-level datasets of original and replication studies, and **one-sided** pairs with individual-level data for the replication study. 
+We are non-selective in collecting these datasets, i.e., both successful and failed studies are included as long as they are available.  
+
+<span style="color:#C0392B;">Please feel free to contact us at ying531 [at] stanford [dot] edu, or open an issue if you have suggestions for replication datasets not collected here!</span>
+
+### Related resources
+
+**Reference.** Please use the following citation if you use this collection in your study, or you use our softwares for analyzing replication studies.
+
+```
+Jin, Y.*, Guo, K.*, Rothenhäusler, D. (2023). 
+Diagnosing the role of observed heterogeneity in replication studies. Arxiv preprint.
+```
+
+**R package.** Our R package [repDiagnosis](https://github.com/ying531/repDiagnosis) provides statistical tools for estimating the heterogeneity in replication studies that is captured by observable factors, such as covariate difference and mediation difference. Paired data 1, 3, 8 below are cleaned and pre-loaded in the R package for use. 
+
+**Live diagnosis.** Play with our analysis tools in our online R shiny app! Quick start with pre-loaded datasets in the app (datasets 1, 3, 8 below). You can also diagnose your own replication study, or probe the generalizability of your single study.
 
 ## Contents 
 
@@ -23,7 +39,7 @@ Below we list links to papers and datasets for original and replication studies 
 | 3.  [EMDR and misinformation](#emdr) |  [Houben, et al., 2018](https://journals.sagepub.com/doi/full/10.1177/2167702618757658) | [OSF link](https://osf.io/j479p/) | [Calvillo and Emami, 2019](https://link.springer.com/article/10.3758/s13423-019-01641-6) | [OSF link](https://osf.io/egvx4/) | [Folder link](host_data_paired/emdr_misinfo/) |
 | 4.  [Self-centrality and mind-body practice](#mindbody)|  [Gebauer, et al., 2018](https://journals.sagepub.com/doi/full/10.1177/0956797618764621) | [yoga](https://madata.bib.uni-mannheim.de/266/1/yoga.csv) [meditation](https://madata.bib.uni-mannheim.de/266/2/meditation.csv) [analysis](https://journals.sagepub.com/doi/suppl/10.1177/0956797618764621/suppl_file/GebauerSupplementalMaterial.pdf) | [Vaughan-Johnston, et al., 2021](https://journals.sagepub.com/doi/full/10.1177/0956797621997366) | [yoga](https://osf.io/v3stn/) [meditation](https://osf.io/g69m4/) | [Folder link](host_data_paired/mindbody_selfcentrality/) |
 | 5.  [Queueing design](#queue) |  [Shunko, et al., 2018](https://pubsonline.informs.org/doi/10.1287/mnsc.2016.2610) | [data zipfile](https://pubsonline.informs.org/doi/suppl/10.1287/mnsc.2016.2610/suppl_file/mnsc.2016.2610-sm-data.zip) | [Long, et al.](https://bpb-us-e2.wpmucdn.com/sites.utdallas.edu/dist/2/1186/files/2023/02/ShunkoEtAl2018_PostReplicationReport.pdf) | [data zipfile](https://msreplication.utdallas.edu/files/2022/04/ShunkoEtAl2018_DataAnalysis.zip) | [Folder link](host_data_paired/queue/) |
-| 6. [Multi-lab disgust and moral judgement](#multilabmoral) | | | [Ghelfi, et al., 2020](https://journals.sagepub.com/doi/full/10.1177/2515245919881152) | [OSF link (to all studies)](https://osf.io/kuyn8/) | |
+| 6. [Multi-lab disgust and moral judgement](#multilabmoral) | | | [Ghelfi, et al., 2020](https://journals.sagepub.com/doi/full/10.1177/2515245919881152) | [OSF link (to all studies)](https://osf.io/kuyn8/) | [Folder link](host_multisite_cleanliness/) |
 | 7. [Pain and cooperation](#paincoop) |[Bastian, et al., 2014](https://journals.sagepub.com/doi/full/10.1177/0956797614545886) |[OSF link](https://osf.io/9k3sw/) | [Prochazka, et al., 2022](https://journals.sagepub.com/doi/full/10.1177/09567976211040745) | [OSF link](https://osf.io/m8trh/) | [Folder link](host_data_paired/pain_coop/) |
 | 8. [Cleaniness and moral judgement](#cleanmoral) |[Schnall, et al., 2008](https://journals.sagepub.com/doi/10.1111/j.1467-9280.2008.02227.x) |[OSF link](https://osf.io/4j8db/) | [Johnson, et al., 2014](https://psycnet.apa.org/fulltext/2014-20922-011.html) | [OSF link](https://osf.io/4mkvz/) | [Folder link](host_data_paired/cleaniness_moral/) |
 | 9. [Lie and foreign language](#lielang) |[Suchotzki and Gamer, 2008](https://psycnet.apa.org/record/2018-20537-005) |[OSF link](https://osf.io/d52g3/) | [Frank, et al., 2019](https://www.tandfonline.com/doi/full/10.1080/02699931.2018.1553148) | [OSF link](https://osf.io/x4rfk/) | [Folder link](host_data_paired/lie_language/)|
@@ -113,11 +129,11 @@ Experiment 2 showed no significant effect of medication on self-centrality; freq
 
 #### 6. <a name="multilabmoral"></a> Multi-lab disgust and moral judgement dataset
 
-- *Background*.  This is a multi-lab replication of an original study from Eskine et al. (2011); unit-level data for the original study is not publicly available to our knowledge. They studied the effect of gustatory disgust on moral judgement, where participants were randomly assigned to bitter, neutral (control), or sweet beverages, and then judged the moral wrongness of six vignettes. Datasets in  OSF are consistently named across studies.
+- *Background*.  This is a multi-lab replication of an original study from Eskine et al. (2011); unit-level data for the original study is not publicly available to our knowledge. They studied the effect of gustatory disgust on moral judgement, where participants were randomly assigned to bitter, neutral (control), or sweet beverages, and then judged the moral wrongness of six vignettes. We follow the ordering on OSF to clean the datasets and preserve common demographic, manipulation check, and outcome variables.
 
 - *Sample sizes*.  The original study had sample size n = 57, while the replication studies had N = 1137 participants in total across k = 11 studies. 
 
-- *Variables*. The outcome variable is the average moral rating of the six vignettes. The treatment variable is `condition`. Baseline covariates including religiosity, gender, age, years in colledge, major, ethnicity, potilical orientation, knowledge of the hypothesis, etc. To evaluate the intended effect of the  beverages on subjective ratings (bitter, disgusting, neutral, and sweet) is also assessed.
+- *Variables*. The outcome variable is the average moral rating of the six vignettes. The treatment variable is `condition`, coded as `dummysweet`, `dummybitter` and `dummywater` in the cleaned datasets. Baseline covariates including religiosity, gender, age, years in colledge, major, ethnicity, potilical orientation, etc. We preserve gender, age, and political orientation for consistency in cleaned data. To evaluate the intended effect of the  beverages on subjective ratings (bitter, disgusting, neutral, and sweet) is also assessed, named as `check_...` in the cleaned data. 
 
 - *Results*. The original study showed that gustatory disgust triggers a significantly heightened sense of moral wrongness. In the multi-lab replication study the overall estimates of effect sizes were all smaller than the original study; some were in the opposite direction; all had 0.95 confidence intervals containing zero.
 

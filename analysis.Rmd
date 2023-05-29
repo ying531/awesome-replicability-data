@@ -1,0 +1,873 @@
+---
+title: "Analysis"
+output: html_document
+date: '2023-04-22'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ebal)
+library(progress)
+library(ggplot2)
+library(lmtest)
+library(sandwich)
+library(repDiagnosis)
+library(ggpubr)
+library(ggtext)
+```
+
+```{r, echo=FALSE}
+run_diagnosis <- function(
+    org_df,
+    rep_df,
+    analysis_formula, # = "pv ~ treatment + factor(delay)*factor(fv)"
+    treatment_name,
+    focal_name = NULL,
+    id_name_1 = NULL,
+    id_name_2 = NULL,
+    covariate_formula = NULL, # covariate formula, take formula over covariates if both are present = "~ practice_religion + religion + race"
+    covariates = NULL, # a vector containing the column names of covariates
+    mediation_formula = NULL, # = "~ (practice_religion + religion + race + panas + happiness_induced + mood_induced)*treatment"
+    mediators = NULL, # a vector containing the column names of mediators
+    alpha = 0.1, # confidence intervals are 1-alpha coverage
+    verbose = TRUE,
+    if_selective = TRUE, # whether to run selective inference CIs
+    pub_pvalue_threshold = 0.05 # p-value threshold for publication bias
+){
+
+  if (is.null(focal_name)){focal_name = treatment_name}
+
+  #####################################################
+  ######### sanity check for covariate inputs #########
+  #####################################################
+
+  # if covariate formula is provided, check whether it results in correct subset data
+  if (!is.null(covariate_formula)){
+    X1 = tryCatch({model.matrix(formula(covariate_formula), data=org_df)},
+             error = function(e) { return(NA) })
+    X2 = tryCatch({model.matrix(formula(covariate_formula), data=rep_df)},
+                  error = function(e) { return(NA) })
+    if (is.na(X1) || is.na(X2)){
+      stop("Covariate formula incorrect! \n")
+    }else{# extract covariate names into a vector
+      covariates = colnames(X1)[2:ncol(X1)]
+    }
+  }else{ # if covariate formula is not provided
+    if (is.null(covariates)){ # if covariates are also not provided
+      stop("Please provide covariate formula or covariates! \n")
+    }else{ # when covariates are present
+      # turn to names if there are numerical indicators
+      for (i.par in 1:length(covariates)){
+        if (!is.na(suppressWarnings(as.integer(covariates[i.par])))){
+          covariates[i.par] = colnames(org_df)[as.integer(covariates[i.par])]
+        }
+      }
+      covariate_formula = paste("~", paste(covariates, collapse = "+"))
+    }
+    # extract covariates and check whether it behaves normally
+    X1 = tryCatch({model.matrix(formula(covariate_formula), data=org_df)},
+                  error = function(e) { return(NA) })
+    X2 = tryCatch({model.matrix(formula(covariate_formula), data=rep_df)},
+                  error = function(e) { return(NA) })
+    if (is.na(X1) || is.na(X2)){ # any of the data fails to be extracted
+      stop("Covariate input does not work! \n")
+    }else{# extract covariate names into a vector
+      covariates = colnames(X1)[2:ncol(X1)]
+      if (is.null(dim(X1[,2:ncol(X1)]))){
+        if (sd(X1[,2:ncol(X1)])==0){stop("Constant covariate error! \n")}
+      }
+    }
+  }
+
+  #####################################################
+  ######### sanity check for mediator inputs ##########
+  #####################################################
+  mediators_all = NULL
+  if (!is.null(mediation_formula)){
+    X1 = tryCatch({model.matrix(formula(mediation_formula), data=org_df)},
+                  error = function(e) { return(NA) })
+    X2 = tryCatch({model.matrix(formula(mediation_formula), data=rep_df)},
+                  error = function(e) { return(NA) })
+    if (is.na(X1) || is.na(X2)){# any of the data fails to be extracted
+      cat("Mediation formula incorrect! \n")
+      stop()
+    }else{
+      mediators_all = colnames(X1)[2:ncol(X1)]
+    }
+  }else{ # if mediation formula is not provided
+    if (!is.null(mediators) && length(mediators) > 0){ # if mediators are provided
+      # turn to names if there are numerical indicators
+      for (i.par in 1:length(mediators)){
+        if (!is.na(suppressWarnings(as.integer(mediators[i.par])))){
+          mediators[i.par] = colnames(org_df)[as.integer(mediators[i.par])]
+        }
+      }
+      # check whether the mediator is constant
+      if (length(mediators)==1){
+        if (sd(as.numeric(unlist(org_df[mediators[1]])))==0 || sd(as.numeric(unlist(rep_df[mediators[1]])))==0){
+          stop("Constant mediator error! \n")
+        }
+      }
+      # generate mediation formula
+      mediation_formula = paste("~(", paste(covariates, collapse="+"), "+", paste(mediators, collapse = "+"), ")*", treatment_name) 
+      # extract covariates and check whether it behaves normally
+      X1 = tryCatch({model.matrix(formula(mediation_formula), data=org_df)},
+                    error = function(e) { return(NA) })
+      X2 = tryCatch({model.matrix(formula(mediation_formula), data=rep_df)},
+                    error = function(e) { return(NA) }) 
+      if (is.na(X1) || is.na(X2)){ # any of the data fails to be extracted
+        stop("Mediator input does not work! \n")
+      }else{
+        mediators_all = colnames(X1)[2:ncol(X1)]
+      }
+    }
+  }
+
+  ####################################################
+  ######### sanity check for cluster inputs ##########
+  ####################################################
+  clusters_1 = NULL
+  clusters_2 = NULL
+  # make sure both ids are present
+  if ((is.null(id_name_1) && !is.null(id_name_2)) || (is.null(id_name_2) && !is.null(id_name_1))){
+    stop("Please provide both group IDs!")
+  }
+  # if both are provided, generate cluster variables
+  if (!is.null(id_name_1) && !is.null(id_name_2)){
+    # generate cluster variables
+    cluster_1 = c(treatment_name, covariates, mediators_all, id_name_1)
+    cluster_2 = c(treatment_name, covariates, mediators_all, id_name_2)
+  }
+
+  ####################################################
+  ######### decomposition diagnosis ##########
+  ####################################################
+
+
+  org_df = data.frame(org_df)
+  rep_df = data.frame(rep_df)
+  results = .decomposition(
+    data1 = org_df,
+    data2 = rep_df,
+    analysis_formula = analysis_formula,
+    treatment_variable = treatment_name,
+    covariate_formula = covariate_formula,
+    mediation_formula = mediation_formula,
+    clusters_1 = clusters_1,
+    clusters_2 = clusters_2
+  )
+
+  # choose the cluster id if it is not null
+  if (!is.null(id_name_1) && !(id_name_1 == '')){
+    id1 = unique(org_df[,id_name_1])
+  }else{
+    id1 = 1:dim(org_df)[1]
+  }
+
+  if (!is.null(id_name_2) && !(id_name_2 == '')){
+    id2 = unique(rep_df[,id_name_2])
+  }else{
+    id2 = 1:dim(rep_df)[1]
+  }
+
+  N1 = length(id1)
+  N2 = length(id2)
+  phi1 = phi2 = data.frame()
+  pb = progress_bar$new("Jackknifing [:bar] :percent", total=N1 + N2, width=80)
+
+  total_steps <- N1 + N2
+  for (i in 1:N1) {
+    pb$tick()
+
+    if (!is.null(id_name_1) && !(id_name_1 == '')){
+      sub.org_df = filter(org_df, !!sym(id_name_1) != id1[i])
+    }else{
+      sub.org_df = org_df[-i,]
+    }
+    try({phi1 = bind_rows(phi1, .decomposition(
+      data1 = sub.org_df,
+      data2 = rep_df,
+      analysis_formula = analysis_formula,
+      treatment_variable = treatment_name,
+      covariate_formula = covariate_formula,
+      mediation_formula = mediation_formula,
+      clusters_1 = clusters_1,
+      clusters_2 = clusters_2
+    )$decomp)}, silent = TRUE)
+  }
+  for (i in 1:N2) {
+    pb$tick()
+
+    if (!is.null(id_name_2) && !(id_name_2 == '')){
+      sub.rep_df = rep_df[rep_df[,id_name_2]!=id2[i],]
+    }else{
+      sub.rep_df = rep_df[-i,]
+    }
+    try({phi2 = bind_rows(phi2, .decomposition(
+      data1 = org_df,
+      data2 = sub.rep_df,
+      analysis_formula = analysis_formula,
+      treatment_variable = treatment_name,
+      covariate_formula = covariate_formula,
+      mediation_formula = mediation_formula,
+      clusters_1 = clusters_1,
+      clusters_2 = clusters_2
+    )$decomp)}, silent = TRUE)
+  }
+
+  phi1 = phi1 %>% drop_na()
+  phi2 = phi2 %>% drop_na()
+
+  if (nrow(phi1) == 0 || nrow(phi2) == 0){
+    stop("Inference incorrect due to specification errors! \n")
+  }
+  SEs = sqrt(apply(phi1, 2, var)*(nrow(phi1)-1)^2/N1 + apply(phi2, 2, var)*(nrow(phi2)-1)^2/N2)
+  Sigma = var(phi1)*(nrow(phi1)-1)^2/N1 + var(phi2)*(nrow(phi2)-1)^2/N2
+
+  # ==================================================
+  # Plotting results
+  bounds = cbind(as.numeric(results$decomp),
+                 as.numeric(results$decomp) - qnorm(0.95)*SEs,
+                 as.numeric(results$decomp) + qnorm(0.95)*SEs) %>% data.frame()
+  pvals = 2 - 2 * pnorm(abs(as.numeric(results$decomp))/SEs)
+  colnames(bounds) = c("estimate", "low", "high")
+  bounds$component = rownames(bounds)
+
+  if (!is.null(mediation_formula)){
+    decomp.plot = bounds %>% filter(component != "Original") %>%
+      mutate(component = factor(component, levels = c("Observed", "Covariates", "Mediators", "Residual"))) %>%
+      ggplot(aes(x = component, fill = component, y = estimate, ymin = low, ymax = high)) +
+      geom_crossbar(aes(alpha = 0.8, col = component), width=0.5) +
+      theme_bw() + xlab("") + ylab("") +
+      # theme(legend.position = "None") +
+      geom_hline(yintercept = 0, lty=2)+
+      theme(text= element_text(family="Times", size=15),
+            axis.text= element_text(family="Times", size=12),
+            strip.text.x= element_text(family="Times", size=12),
+            strip.text.y= element_text(family="Times", size=12),
+            legend.title = element_text(family="Times", size=15),
+            legend.position="None",
+            plot.title = element_text(family="Times", size=15, hjust = 0.5))
+    
+    build.data = ggplot_build(decomp.plot)$data
+    colors = build.data[[1]]$colour
+    names = c("Observed", "Covariates", "Mediators", "Residual") 
+    delta_symbol <- intToUtf8(0x0394)
+    theta_symbol <- intToUtf8(0x03B8)
+    title_text <- sprintf("Decomposition of <span style='color:%s;'>%s<sub>original</sub> - %s<sub>replication</sub></span> =
+                          <span style='color:%s;'>%s<sub>covariate</sub></span> + 
+                          <span style='color:%s;'>%s<sub>mediator</sub></span> + 
+                          <span style='color:%s;'>%s<sub>residual</sub></span>", 
+                          colors[1], theta_symbol, theta_symbol,
+                          colors[2], delta_symbol, 
+                          colors[3], delta_symbol, 
+                          colors[4], delta_symbol)
+    decomp.plot = bounds %>% filter(component != "Original") %>%
+      mutate(component = factor(component, levels = c("Observed", "Covariates", "Mediators", "Residual"))) %>%
+      ggplot(aes(x = component, fill = component, y = estimate, ymin = low, ymax = high)) +
+      geom_crossbar(aes(alpha = 0.8, col = component), width=0.5) +
+      theme_bw() + xlab("") + ylab("") +
+      # theme(legend.position = "None") +
+      labs(title = title_text) + 
+      geom_hline(yintercept = 0, lty=2)+  
+      theme(text= element_text(family="Times", size=15),
+            axis.text= element_text(family="Times", size=12),
+            strip.text.x= element_text(family="Times", size=12),
+            strip.text.y= element_text(family="Times", size=12),
+            legend.title = element_text(family="Times", size=15),
+            legend.position="None",
+            # plot.title = element_text(family="Times", size=15, hjust = 0.5),
+            plot.title = element_markdown(lineheight = 1, size=12, hjust = 0.5))
+
+
+    ret_table = cbind(as.numeric(results$decomp), SEs, as.numeric(results$decomp)/SEs, pvals)
+    colnames(ret_table) = c("Estimate", "Std. Error", "t-stat", "Pr(>|z|)")
+    rownames(ret_table) = c("Original", "Observed", "Covariates", "Mediators", "Residual")
+    ret_table_df <- as.data.frame(ret_table)
+    ret_table_df$Component <- rownames(ret_table)
+    ret_table_df <- ret_table_df[, c("Component", "Estimate", "Std. Error", "t-stat", "Pr(>|z|)")]
+
+    if (verbose){ # print summary table
+      cat("\n")
+      cat("Summary of decomposition for replication diagnosis:")
+      cat("\n\n")
+      print(ret_table)
+      cat("\n")
+
+      print(decomp.plot)
+    }
+
+    # ==============================================================
+    # Accounting for publication bias at the p = pub_pvalue_threshold level
+
+    if (if_selective){
+      threshold = qnorm(1-pub_pvalue_threshold/2)*summary(lm(analysis_formula, data = org_df))$coefficients[treatment_name, "Std. Error"]
+      components = c("Observed", "Covariates", "Mediators", "Residual")
+      bounds = lapply(components, FUN = function(v) {
+        .selective_ci(
+          x = results$decomp[c(v, "Original")],
+          sigma = Sigma[c(v, "Original"), c(v, "Original")],
+          threshold = threshold,
+          alpha = alpha
+        )}) %>% bind_rows()
+
+      bounds$component = components
+
+      ret_table_sel = data.frame(bounds[,c("low", "high", "estimate")])
+      rownames(ret_table_sel) = components
+
+
+      # generate error message
+      sel.message = ""
+      bounds.sel.tp = data.frame()
+      for (v in 1:length(components)){
+
+        if ((bounds$low[v] == -Inf) || (bounds$high[v] == Inf)){
+          sel.message = paste(sel.message,
+                              "No meaningful selective CI within [",
+                              bounds$lowest[v], bounds$highest[v],"] for ",
+                              components[v], "component! \n")
+        }else{
+          to.add = ret_table_sel[v,]
+          if ((bounds$estimate[v] == -Inf) || (bounds$estimate[v] < bounds$low[v]) || (bounds$estimate[v] > bounds$high[v])){
+            to.add$estimate = (to.add$low + to.add$high)/2
+          }
+          bounds.sel.tp = rbind(bounds.sel.tp, to.add)
+        }
+      }
+
+      if (nrow(bounds.sel.tp)>0){
+        bounds.sel.tp$components = rownames(bounds.sel.tp)
+        selective.plt = bounds.sel.tp %>%
+          mutate(component = factor(components, levels = c("Original", "Observed", "Covariates", "Mediators", "Residual"))) %>%
+          ggplot(aes(x = component, fill = component, y = estimate, ymin = low, ymax = high)) +
+          geom_crossbar(aes(col = component), alpha = 0.5, width=0.6) +
+          theme_bw() + xlab("") + ylab("") +
+          theme(legend.position = "None") +
+          geom_hline(yintercept = 0, lty=2) +
+          theme(text= element_text(family="Times", size=15),
+                axis.text= element_text(family="Times", size=12),
+                strip.text.x= element_text(family="Times", size=12),
+                strip.text.y= element_text(family="Times", size=12),
+                legend.title = element_text(family="Times", size=15),
+                legend.position="None",
+                plot.title = element_text(family="Times", size=15, hjust = 0.5))
+
+      }else{
+        selective.plt = NULL
+      }
+    }
+
+    if (verbose){ # print summary table
+      cat("\n")
+      cat("Summary of post-selective decomposition for replication diagnosis:")
+      cat("\n\n")
+      print(ret_table_sel)
+      cat("\n")
+
+      if (!is.null(selective.plt)){
+        print(selective.plt)
+      }
+    }
+
+
+
+  }else{
+
+    ###### mediation formula is null
+
+    decomp.plot = bounds %>% filter(component != "Original") %>%
+      mutate(component = factor(component, levels = c("Observed", "Covariates", "Residual"))) %>%
+      ggplot(aes(x = component, fill = component, y = estimate, ymin = low, ymax = high)) +
+      geom_crossbar(aes(alpha = 0.8, col = component), width=0.5) +
+      theme_bw() + xlab("") + ylab("") +
+      geom_hline(yintercept = 0, lty=2)+
+      theme(text= element_text(family="Times", size=15),
+            axis.text= element_text(family="Times", size=12),
+            strip.text.x= element_text(family="Times", size=12),
+            strip.text.y= element_text(family="Times", size=12),
+            legend.title = element_text(family="Times", size=15),
+            legend.position="None",
+            plot.title = element_text(family="Times", size=15, hjust = 0.5))
+    
+    build.data = ggplot_build(decomp.plot)$data
+    colors = build.data[[1]]$colour
+    names = c("Observed", "Mediators", "Residual") 
+    delta_symbol <- intToUtf8(0x0394)
+    theta_symbol <- intToUtf8(0x03B8)
+    title_text <- sprintf("Decomposition of <span style='color:%s;'>%s<sub>original</sub> - %s<sub>replication</sub></span> =
+                          <span style='color:%s;'>%s<sub>covariate</sub></span> +  <span style='color:%s;'>%s<sub>residual</sub></span>", 
+                          colors[1], theta_symbol, theta_symbol,
+                          colors[2], delta_symbol, 
+                          colors[3], delta_symbol)
+    decomp.plot = bounds %>% filter(component != "Original") %>%
+      mutate(component = factor(component, levels = c("Observed", "Covariates", "Mediators", "Residual"))) %>%
+      ggplot(aes(x = component, fill = component, y = estimate, ymin = low, ymax = high)) +
+      geom_crossbar(aes(alpha = 0.8, col = component), width=0.5) +
+      theme_bw() + xlab("") + ylab("") +
+      # theme(legend.position = "None") +
+      labs(title = title_text) + 
+      geom_hline(yintercept = 0, lty=2)+  
+      theme(text= element_text(family="Times", size=15),
+            axis.text= element_text(family="Times", size=12),
+            strip.text.x= element_text(family="Times", size=12),
+            strip.text.y= element_text(family="Times", size=12),
+            legend.title = element_text(family="Times", size=15),
+            legend.position="None",
+            # plot.title = element_text(family="Times", size=15, hjust = 0.5),
+            plot.title = element_markdown(lineheight = 1, size=12, hjust = 0.5))
+    
+
+
+    ret_table = cbind(as.numeric(results$decomp), SEs, as.numeric(results$decomp)/SEs, pvals)
+    colnames(ret_table) = c("Estimate", "Std. Error", "t-stat", "Pr(>|z|)")
+    rownames(ret_table) = c("Original", "Observed", "Covariates", "Residual")
+    ret_table_df <- as.data.frame(ret_table)
+    ret_table_df$Component <- rownames(ret_table)
+    ret_table_df <- ret_table_df[, c("Component", "Estimate", "Std. Error", "t-stat", "Pr(>|z|)")]
+
+
+    if (verbose){ # print summary table
+      cat("\n")
+      cat("Summary of decomposition for replication diagnosis:")
+      cat("\n\n")
+      print(ret_table)
+      cat("\n")
+
+      print(decomp.plot)
+    }
+
+    # ==============================================================
+    # Accounting for publication bias at the p = pub_pvalue_threshold level
+    if (if_selective){
+      threshold = qnorm(1-pub_pvalue_threshold/2)*summary(lm(analysis_formula, data = org_df))$coefficients[treatment_name, "Std. Error"]
+      components = c("Observed", "Covariates", "Residual")
+      bounds = lapply(components, FUN = function(v) {
+        .selective_ci(
+          x = results$decomp[c(v, "Original")],
+          sigma = Sigma[c(v, "Original"), c(v, "Original")],
+          threshold = threshold,
+          alpha = alpha
+        )}) %>% bind_rows()
+
+      bounds$component = components
+
+      ret_table_sel = data.frame(bounds[,c("low", "high", "estimate")])
+      rownames(ret_table_sel) = components
+
+      # generate error message
+      sel.message = ""
+      bounds.sel.tp = data.frame()
+      for (v in 1:length(components)){
+
+        if ((bounds$low[v] == -Inf) || (bounds$high[v] == Inf)){
+          sel.message = paste(sel.message,
+                              "No meaningful selective CI within [",
+                              bounds$lowest[v], bounds$highest[v],"] for ",
+                              components[v], "component! <br>")
+        }else{
+          to.add = ret_table_sel[v,]
+          if  ((bounds$estimate[v] == -Inf) || (bounds$estimate[v] < bounds$low[v]) || (bounds$estimate[v] > bounds$high[v])){
+            to.add$estimate = (to.add$low + to.add$high)/2
+          }
+          bounds.sel.tp = rbind(bounds.sel.tp, to.add)
+        }
+
+      }
+
+
+
+      if (nrow(bounds.sel.tp)>0){
+        bounds.sel.tp$components = rownames(bounds.sel.tp)
+        selective.plt = bounds.sel.tp %>%
+          mutate(component = factor(components, levels = c("Original", "Observed", "Covariates", "Mediators", "Residual"))) %>%
+          ggplot(aes(x = component, fill = component, y = estimate, ymin = low, ymax = high)) +
+          geom_crossbar(aes(col = component), alpha = 0.8, width=0.5) +
+          theme_bw() + xlab("") + ylab("") +
+          theme(legend.position = "None") +
+          geom_hline(yintercept = 0, lty=2) +
+          theme(text= element_text(family="Times", size=15),
+                axis.text= element_text(family="Times", size=12),
+                strip.text.x= element_text(family="Times", size=12),
+                strip.text.y= element_text(family="Times", size=12),
+                legend.title = element_text(family="Times", size=15),
+                legend.position="None",
+                plot.title = element_text(family="Times", size=15, hjust = 0.5))
+      }else{
+        selective.plt = NULL
+      }
+    }
+
+    if (verbose){ # print summary table
+      cat("\n")
+      cat("Summary of post-selective decomposition for replication diagnosis:")
+      cat("\n\n")
+      print(ret_table_sel)
+      cat("\n")
+
+      if (!is.null(selective.plt)){
+        print(selective.plt)
+      }
+    }
+  }
+
+  ret_table_sel$Component <- rownames(ret_table_sel)
+  ret_table_sel <- ret_table_sel[, c("Component", "low", "high", "estimate")]
+  colnames(ret_table_sel) = c("Component", "CI.Low", "CI.High", "Estimate")
+
+  ret_table_sel$Estimate[ret_table_sel$Estimate==-Inf] = "NULL"
+
+  if (nchar(sel.message)>0){
+    cat(sel.message)
+  }
+
+  return(list("plot" = decomp.plot, "table" = ret_table_df,
+              "plot_selective" = selective.plt, "table_selective" = ret_table_sel,
+              "message_selective" = sel.message))
+
+}
+
+.decomposition = function(
+    data1, # a data frame
+    data2, # a data frame
+    analysis_formula, # a formula for OLS
+    treatment_variable, # the name of the focal variable
+    covariate_formula = NULL, # covariates to be balanced
+    mediation_formula = NULL, # covariates + mediators to be balanced
+    clusters_1 = NULL, # variables defining clusters.  must contain all variables in the covariate/mediation formulae
+    clusters_2 = NULL
+) {
+  if (is.null(clusters_1)) {
+    group1 = data1
+    # group1$id = 1:nrow(group1)
+    # data1$id = 1:nrow(data1)
+  } else {
+    group1 = unique(data1[,clusters_1])
+  }
+  if (is.null(clusters_2)) {
+    group2 = data2
+    # group2$idx = 1:nrow(group2)
+    # data2$idx = 1:nrow(data2)
+  } else {
+    group2 = unique(data2[,clusters_2])
+  }
+  X = model.matrix(formula(covariate_formula), data=bind_rows(group1, group2))[,-1]
+  S = c(rep(1, nrow(group1)), rep(0, nrow(group2)))
+  group2$w = ebalance(Treatment=S, X=X, print.level=-1)$w # covariate weights
+
+  if (!is.null(mediation_formula)){
+    M = model.matrix(formula(mediation_formula), data=bind_rows(group1, group2))[,-1]
+    group2$o = ebalance(Treatment=S, X=M, print.level=-1)$w # mediation weights
+  }
+
+  if (is.null(clusters_2)){
+    data2weighted = group2
+  }else{
+    data2weighted = left_join(data2, group2, by=clusters_2)
+  }
+
+  theta1 = coef(lm(formula(analysis_formula), data=data1))[treatment_variable]
+  theta2 = coef(lm(formula(analysis_formula), data=data2))[treatment_variable]
+  theta2X= coef(lm(formula(analysis_formula), data=data2weighted, weights=w))[treatment_variable]
+
+  if (!is.null(mediation_formula)){
+    theta2M= coef(lm(formula(analysis_formula), data=data2weighted, weights=o))[treatment_variable]
+    decomp = data.frame(
+      "Original" = theta1,
+      "Observed" = theta1 - theta2,
+      "Covariates" = theta2X - theta2,
+      "Mediators" = theta2M - theta2X,
+      "Residual" = theta1 - theta2M
+    )
+  }else{ # mediation formula is null
+    decomp = data.frame(
+      "Original" = theta1,
+      "Observed" = theta1 - theta2,
+      "Covariates" = theta2X - theta2,
+      "Residual" = theta1 - theta2X
+    )
+  }
+
+
+  return(list("decomp" = decomp, "w" = group2$w, "o" = group2$o))
+}
+
+
+
+
+
+.selective_t = function(x, delta, sigma, threshold) {
+  # Tests the null hypothesis mu[1] = delta under X ~ N(mu, Sigma)
+  # Returns a P-value that remains valid conditional on |x2| > threshold
+  tau = as.numeric(threshold)
+  d = as.numeric(delta)
+  stat = as.numeric(x[1])
+  sd = as.numeric(sqrt(sigma[1,1]))
+  beta = as.numeric(sigma[1,2]/sigma[1,1])
+  R = as.numeric(x[2] - beta*x[1])
+  low = min((tau-R)/beta, -(tau+R)/beta)
+  high = max((tau-R)/beta, -(tau+R)/beta)
+  num = pnorm((min(stat, low) - d)/sd) + pmax(0, pnorm((stat - d)/sd) - pnorm((high - d)/sd))
+  denom = 1 + pnorm((low - d)/sd) - pnorm((high - d)/sd)
+  if (denom == 0){
+    return(Inf)
+  }else{
+    return(num/denom)
+  }
+
+}
+
+.selective_ci = function(x, sigma, threshold, alpha = 0.1) {
+  # Selective confidence interval for mu[1] conditional on |x[2]| > threshold
+  lower = as.numeric(x[1] - 20*sqrt(sigma[1,1])) - 10
+  upper = as.numeric(x[1] + 20*sqrt(sigma[1,1])) + 10
+
+  delta.try = seq(lower, upper, by=0.01)
+  all.val = sapply(delta.try, .selective_t, x=x, sigma=sigma, threshold=threshold)
+
+  if (min(abs(all.val-alpha/2)) <= 0.1 * alpha){
+    low.try = delta.try[which.min(abs(all.val-alpha/2))]
+  }else{
+    low.try = -Inf
+  }
+
+  if (min(abs(all.val-0.5)) <= 0.1 * alpha){
+    med.try = delta.try[which.min(abs(all.val-0.5))]
+  }else{
+    med.try = -Inf
+  }
+
+  if (min(abs(all.val-1+alpha/2)) <= 0.1 * alpha){
+    high.try = delta.try[which.min(abs(all.val-1+alpha/2))]
+  }else{
+    high.try = Inf
+  }
+
+
+  return(data.frame(
+    "low" = min(low.try, high.try), "high" = max(low.try, high.try), "estimate" = med.try,
+    "lowest" = lower, "highest" = upper
+  ))
+}
+
+```
+
+## 1. EMDR and misinformation
+
+
+```{r, echo = TRUE}
+data(emdr_misinfo)
+
+emdr_results = run_diagnosis(org.dat, rep.dat, 
+                             analysis_formula = "totalcorrect ~ condition", 
+                             treatment_name = "condition", 
+                             covariate_formula = "~ age + gender + prevividness + preemotionality",
+                             mediation_formula = "~  (age + gender + prevividness + preemotionality + postvividness + postemotionality)*condition",
+                             verbose = FALSE)
+
+emdr.plt = emdr_results$plot + ggtitle("Decomposition plot")
+emdr.sel.plt = emdr_results$plot_selective + ggtitle("Post-selection decomposition plot")
+ggarrange(emdr.plt, emdr.sel.plt, nrow = 1)
+
+print(emdr_results$table)
+print(emdr_results$table_selective)
+```
+
+
+
+## 2. Cleanliness and moral judgement 
+
+
+### 2.1 Experiment 1
+
+```{r, echo = TRUE}
+data(clean_moral_1)
+
+clean_results_1 = run_diagnosis(org.dat, rep.dat, 
+                                analysis_formula = vignettes ~ condition,
+                                treatment_name = "condition", 
+                                covariates = c("age", "gender"),
+                                mediators = c("disgusted"), 
+                                verbose = FALSE
+                                )
+
+clean_1.plt = clean_results_1$plot + ggtitle("Decomposition plot")
+clean_1.sel.plt = clean_results_1$plot_selective + ggtitle("Post-selection decomposition plot")
+ggarrange(clean_1.plt, clean_1.sel.plt, nrow = 1)
+
+print(clean_results_1$table)
+print(clean_results_1$table_selective)
+```
+
+
+### 2.2 Experiment 2
+
+```{r, echo = TRUE}
+data(clean_moral_2)
+rep.dat = rep.dat %>% drop_na()
+
+clean_results_2 = run_diagnosis(org.dat, rep.dat, 
+                                analysis_formula = vignette ~ condition,
+                                treatment_name = "condition", 
+                                covariates = c("age", "gender"),
+                                mediators = c("disgusted"), 
+                                verbose = FALSE
+                                )
+
+clean_2.plt = clean_results_2$plot + ggtitle("Decomposition plot")
+clean_2.sel.plt = clean_results_2$plot_selective + ggtitle("Post-selection decomposition plot")
+ggarrange(clean_2.plt, clean_2.sel.plt, nrow = 1)
+ 
+
+print(clean_results_2$table)
+print(clean_results_2$table_selective)
+```
+
+
+## 3. Covid misinformation 
+
+```{r, echo = TRUE}
+data(covid_info)
+
+# org.dat = org.dat %>% filter(id <= 200)
+# rep.dat = rep.dat %>% filter(id <= 200)
+
+covid_result = run_diagnosis(org.dat, rep.dat, 
+                             analysis_formula = "rating ~ treatment + real + realxtreatment",
+                             treatment_name = "treatment", 
+                             focal_name = "realxtreatment",
+                             id_name_1 = "id", 
+                             id_name_2 = "id",
+                             covariate_formula = "~ (age + gender + sciknow + mms) * treatment", 
+                             # covariates = c("age", "gender", "hispanic", "social_conserv", "sciknow", "mms"),
+                             # mediators = c("discernment"), 
+                             mediation_formula = "~ (age + gender + sciknow + mms + discernment) * treatment",
+                             verbose = FALSE
+                             )
+
+covid.plt = covid_result$plot + ggtitle("Decomposition plot")
+# covid.sel.plt = covid_result$plot_selective + ggtitle("Post-selection decomposition plot")
+# ggarrange(covid.plt, covid.plt, nrow = 1)
+covid.plt
+
+print(covid_result$table)
+print(covid_result$table_selective)
+```
+
+
+## 4. Time and honestness
+
+```{r, echo=TRUE}
+org.dat = read.csv("./host_data_paired/time_honest/original_cleaned.csv")
+rep.dat = read.csv("./host_data_paired/time_honest/replication2_cleaned.csv")
+
+org.dat$Dice_report = as.numeric(org.dat$Dice_report)
+org.dat = org.dat %>% drop_na()
+
+honest_result = run_diagnosis(org.dat, rep.dat, 
+                              analysis_formula = "Dice_report ~ Treatment",
+                              treatment_name = "Treatment",  
+                              covariates = c("Gender"), 
+                              mediators = c("Report_time"),
+                              verbose = FALSE)
+
+honest.plt = honest_result$plot + ggtitle("Decomposition plot")
+honest.sel.plt = honest_result$plot_selective + ggtitle("Post-selection decomposition plot")
+ggarrange(honest.plt, honest.sel.plt, nrow = 1)
+
+print(honest_result$table)
+print(honest_result$table_selective)
+```
+
+## 5. Empathy and SES
+
+```{r, echo=TRUE}
+org.dat = read.csv("./host_data_paired/empathy_ses/replication_study1_cleaned.csv") %>% drop_na(c("Age", "Gender_Coded", "Born_US", "Ethnicity_Coded", "Religiousity", "Political_Aff",
+                 "Income", "E_Compassion", "E_Sympathy"))
+org.dat$Born_US = 1 * org.dat$Born_US
+rep.dat = read.csv("./host_data_paired/empathy_ses/replication_study2_cleaned.csv") %>% drop_na(c("Age", "Gender_Coded", "Born_US", "Ethnicity_Coded", "Religiousity", "Political_Aff",
+                 "Income", "E_Compassion", "E_Sympathy"))
+rep.dat$Born_US = 1 * rep.dat$Born_US
+
+empathy_result = run_diagnosis(
+  org_df = org.dat, 
+  rep_df = rep.dat, 
+  analysis_formula = "Decision_DV ~ Treatment",
+  treatment_name = "Treatment",   
+  covariates = c("Age", "Gender_Coded", "Born_US", "Ethnicity_Coded", "Religiousity", "Political_Aff",
+                 "Income"), 
+  mediators = c("E_Compassion", "E_Sympathy"), 
+  verbose = FALSE
+)
+
+empathy.plt = empathy_result$plot + ggtitle("Decomposition plot")
+empathy.sel.plt = empathy_result$plot_selective + ggtitle("Post-selection decomposition plot")
+ggarrange(empathy.plt, empathy.sel.plt, nrow = 1)
+
+print(empathy_result$table)
+print(empathy_result$table_selective)
+```
+
+
+## 6. Pain and cooperation 
+
+```{r, echo=TRUE}
+org.dat = read.csv("./host_data_paired/pain_coop/original_clean.csv") %>% select(-c(subid))
+rep.dat = read.csv("./host_data_paired/pain_coop/replication1_clean.csv") %>% select(-c(subid))
+
+org.dat = org.dat %>% drop_na(c("subage", "subgender", "feel_interested", "feel_active", "task_challenging"))
+rep.dat = rep.dat %>% drop_na(c("subage", "subgender", "feel_interested", "feel_active", "task_challenging"))
+
+coop_result = run_diagnosis(org.dat, rep.dat, 
+                              analysis_formula = "cooperation ~ condition",
+                              treatment_name = "condition", 
+                              id_name_1 = "groupnr", 
+                              id_name_2 = "groupnr",
+                              covariates = c("subage", "subgender"), 
+                              mediators = c("feel_interested", "feel_active", "task_challenging"),
+                              verbose = FALSE)
+
+coop.plt = coop_result$plot + ggtitle("Decomposition plot")
+coop.sel.plt = coop_result$plot_selective + ggtitle("Post-selection decomposition plot")
+ggarrange(coop.plt, coop.sel.plt, nrow = 1)
+
+print(coop_result$table)
+print(coop_result$table_selective)
+```
+
+## 7. Queueing design
+
+```{r, echo=TRUE}
+org.dat = read.csv("./host_data_paired/queue/original_clean.csv") 
+rep.dat = read.csv("./host_data_paired/queue/replication_clean.csv") 
+
+org.dat$gender = 1 * (org.dat$gender == "Male")
+rep.dat$gender = 1 * (rep.dat$gender == "Male")
+rep.dat$structure = 1 * (rep.dat$structure == "Single")
+org.dat$structure = 1 * (org.dat$structure == 'Single')
+org.dat$managerial = 1 * (org.dat$managerial == "Yes")
+rep.dat$managerial = 1 * (rep.dat$managerial == "Yes")
+
+org.dat.lab = org.dat %>% filter(study == "lab")
+org.dat.mturk = org.dat %>% filter(study == 'mturk')
+rep.dat.uwm = rep.dat %>% filter(study == "UWMadison")
+rep.dat.usc = rep.dat %>% filter(study == "USC")
+
+queue_result = run_diagnosis(org.dat.lab, rep.dat.uwm, 
+                              analysis_formula = "median_speed ~ structure + gender + bornafter1990 + managerial",
+                              treatment_name = "structure",  
+                              covariates = c("gender", "bornafter1990", "managerial"),  
+                              verbose = FALSE)
+queue.plt = queue_result$plot + ggtitle("Decomposition plot")
+queue.plt 
+
+print(queue_result$table)
+print(queue_result$table_selective)
+```
+
+
+
+```{r, echo=FALSE}
+save(emdr_results, clean_results_1, clean_results_2, covid_result, honest_result, empathy_result, coop_result, queue_result, file = "results.RData")
+```
