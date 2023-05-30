@@ -136,8 +136,8 @@ run_diagnosis <- function(
   # if both are provided, generate cluster variables
   if (!is.null(id_name_1) && !is.null(id_name_2)){
     # generate cluster variables
-    cluster_1 = c(treatment_name, covariates, mediators_all, id_name_1)
-    cluster_2 = c(treatment_name, covariates, mediators_all, id_name_2)
+    clusters_1 = c(treatment_name, covariates, mediators_all, id_name_1)
+    clusters_2 = c(treatment_name, covariates, mediators_all, id_name_2)
   }
 
   ####################################################
