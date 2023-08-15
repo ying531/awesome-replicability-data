@@ -13,16 +13,16 @@ We are non-selective in collecting these datasets, i.e., both successful and fai
 
 ```
 Jin, Y.*, Guo, K.*, Rothenhäusler, D. (2023). 
-Diagnosing the role of observed heterogeneity in replication studies. Arxiv preprint.
+Diagnosing the role of observed distribution shift in scientific replications. Arxiv preprint.
 ```
 
 **R package.** Our R package [repDiagnosis](https://github.com/ying531/repDiagnosis) provides statistical tools for estimating the heterogeneity in replication studies that is captured by observable factors, such as covariate difference and mediation difference. Paired data 1, 3, 8 below are cleaned and pre-loaded in the R package for use. 
 
-**Live diagnosis.** Play with our analysis tools in our online R shiny app! Quick start with pre-loaded datasets in the app (datasets 1, 3, 8 below). You can also diagnose your own replication study, or probe the generalizability of your single study.
+**Live diagnosis.** Play with our interactive analysis tools in our online R shiny app! Quick start with pre-loaded datasets in the app (datasets 1, 3, 8 below). You can also diagnose your own replication study, or probe the generalizability of your single study.
 
 ## Contents 
 
-**1. Complete, paried datasets.** [Data list](#list_paired), [Data details](#detail_paired). 
+**1. Complete, paired datasets.** [Data list](#list_paired), [Data details](#detail_paired). 
 
 **2. One sided datasets.** [Data list](#list_oneside), [Data details](#detail_oneside).
 
