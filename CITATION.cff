@@ -12,3 +12,4 @@ type: dataset
 authors:
   - given-names: Ying
     family-names: Jin
+repository-code: 'https://github.com/ying531/awesome-replicability-data'
