@@ -5,7 +5,7 @@
 This repository collects publicly available datasets for replicability analysis. Currently, we curate a collection of **paired** individual-level datasets of original and replication studies, and **one-sided** pairs with individual-level data for the replication study. 
 We are non-selective in collecting these datasets, i.e., both successful and failed studies are included as long as they are available.  
 
-<span style="color:#C0392B;">Please feel free to contact us at ying531 [at] stanford [dot] edu, or open an issue if you have suggestions for replication datasets not collected here!</span>
+<span style="color:#C0392B;">Please feel free to contact us at `ying531 [at] stanford [dot] edu`, or open an issue if you have suggestions for replication datasets not collected here!</span>
 
 ### Related resources
 
