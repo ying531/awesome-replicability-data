@@ -12,14 +12,19 @@ We are non-selective in collecting these datasets, i.e., both successful and fai
 **Reference.** Please use the following citation if you use this collection in your study, or you use our softwares for analyzing replication studies.
 
 ```
-Jin, Y.*, Guo, K.*, Rothenhäusler, D. (2023). 
-Diagnosing the role of observed distribution shift in scientific replications. 
-Arxiv preprint.
+@article{jin2023diagnosing,
+  title={Diagnosing the role of observable distribution shift in scientific replications},
+  author={Jin, Ying and Guo, Kevin and Rothenh{\"a}usler, Dominik},
+  journal={arXiv preprint},
+  year={2023}
+}
 ```
 
 **R package.** Our R package [repDiagnosis](https://github.com/ying531/repDiagnosis) provides statistical tools for estimating the contribution of observable distribution shifts in replication studies, such as covariate difference and mediation shifts. Paired data 1, 3, 8 below are cleaned and pre-loaded in the R package for use. 
 
 **Interactive diagnosis app.** Play with our interactive analysis tools in our [online R shiny app](https://mbzlnj-ying-jin.shinyapps.io/shiny/)! Quick start with pre-loaded datasets in the app (datasets 1, 3, 8 below). You can also diagnose your own replication study, or probe the generalizability of your single study.
+
+We provide in `analysis.html` a analysis report for other datasets that we did not elaborate on in our paper. 
 
 ## Contents 
 
