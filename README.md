@@ -244,7 +244,7 @@ Please use the following citation if you use this collection in your study, or y
 @article{jin2023diagnosing,
   title={Diagnosing the role of observable distribution shift in scientific replications},
   author={Jin, Ying and Guo, Kevin and Rothenh{\"a}usler, Dominik},
-  journal={arXiv preprint},
+  journal={arXiv preprint arXiv:2309.01056},
   year={2023}
 }
 ```
