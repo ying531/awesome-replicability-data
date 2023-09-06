@@ -3,9 +3,11 @@
 </h1>
 
 This repository collects publicly available datasets for replicability analysis. Currently, we curate a collection of **paired** individual-level datasets of original and replication studies, and **one-sided** pairs with individual-level data for the replication study. 
-We are non-selective in collecting these datasets, i.e., both successful and failed studies are included as long as they are available.  
+We are non-selective in collecting these datasets, i.e., both successful and failed studies are included as long as they are available. 
 
-<span style="color:#C0392B;">Please feel free to contact us at `ying531 [at] stanford [dot] edu`, or open an issue if you have suggestions for replication datasets not collected here!</span>
+This repository accompanies the paper "[Diagnosing the role of observable distribution shift in scientific replications](https://arxiv.org/abs/2309.01056)" by Ying Jin, Kevin Guo and Dominik Rothenhäusler. [[Reference](#reference)] 
+
+<span style="color:#C0392B;">Please feel free to contact us at `ying531[at]stanford[dot]edu`, or open an issue if you have suggestions for replication datasets not collected here!</span>
 
 ### Related resources
 
@@ -13,7 +15,7 @@ We are non-selective in collecting these datasets, i.e., both successful and fai
 
 **Interactive diagnosis app.** Play with our interactive analysis tools in our [online R shiny app](https://mbzlnj-ying-jin.shinyapps.io/shiny/)! Quick start with pre-loaded datasets in the app (datasets 1, 3, 8 below). You can also diagnose your own replication study, or probe the generalizability of your single study.
 
-We provide in `analysis.html` a analysis report for other datasets that we did not elaborate on in our paper. 
+**Example analysis.** We provide in `analysis.html` a analysis report for other datasets that we did not elaborate on in our paper. 
 
 ## Contents 
 
@@ -234,7 +236,7 @@ There are two multi-lab replications. Hagger, et al., [2016] failed, but Dang, e
 - *Results*. The conclusion in the original study was not successfully replicated. The replication report emphasized potential heterogeneity among people as a potential factor for the failure.
 
 
-### Reference 
+### Reference  <a name="reference"></a>
 
 Please use the following citation if you use this collection in your study, or you use our softwares for analyzing replication studies.
 
