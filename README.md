@@ -9,17 +9,6 @@ We are non-selective in collecting these datasets, i.e., both successful and fai
 
 ### Related resources
 
-**Reference.** Please use the following citation if you use this collection in your study, or you use our softwares for analyzing replication studies.
-
-```
-@article{jin2023diagnosing,
-  title={Diagnosing the role of observable distribution shift in scientific replications},
-  author={Jin, Ying and Guo, Kevin and Rothenh{\"a}usler, Dominik},
-  journal={arXiv preprint},
-  year={2023}
-}
-```
-
 **R package.** Our R package [repDiagnosis](https://github.com/ying531/repDiagnosis) provides statistical tools for estimating the contribution of observable distribution shifts in replication studies, such as covariate difference and mediation shifts. Paired data 1, 3, 8 below are cleaned and pre-loaded in the R package for use. 
 
 **Interactive diagnosis app.** Play with our interactive analysis tools in our [online R shiny app](https://mbzlnj-ying-jin.shinyapps.io/shiny/)! Quick start with pre-loaded datasets in the app (datasets 1, 3, 8 below). You can also diagnose your own replication study, or probe the generalizability of your single study.
@@ -243,3 +232,17 @@ There are two multi-lab replications. Hagger, et al., [2016] failed, but Dang, e
 - *Variables*.  The outcome of interest is the difference in body satisfaction and self-esteem before and after the intervention. We save the replication dataset (unit-level), and the sample mean of demographic information in the original dataset. 
 
 - *Results*. The conclusion in the original study was not successfully replicated. The replication report emphasized potential heterogeneity among people as a potential factor for the failure.
+
+
+### Reference 
+
+Please use the following citation if you use this collection in your study, or you use our softwares for analyzing replication studies.
+
+```
+@article{jin2023diagnosing,
+  title={Diagnosing the role of observable distribution shift in scientific replications},
+  author={Jin, Ying and Guo, Kevin and Rothenh{\"a}usler, Dominik},
+  journal={arXiv preprint},
+  year={2023}
+}
+```
