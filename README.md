@@ -69,7 +69,7 @@ Below we collect one-sided original-replication study pairs, i.e., where the rep
 
 - *Sample sizes*. The original study by Pennycook et al. recruited n = 1145 participants, while the replication study by Roozenbeek et al. had sample size N = 1583.
 
-- *Variables*. The outcome variable is the rating for willingness to share the headlines. In addition, both studies measured demographical information including age, gender, education, ethnicity. Other measures include cognitive reflection `crt`, science knowledge `sciknow`, medical maximizer-minimizer scale `mms`, etc.
+- *Variables*. The outcome variable is `ratings`, which is the rating for willingness to share the headlines. In addition, both studies measured demographical information including age, gender, education, ethnicity. Other measures include cognitive reflection `crt`, science knowledge `sciknow`, medical maximizer-minimizer scale `mms`, etc. The binary treatment is encoded in `treatment` column, and `real` is a binary indicator of whether the information is correct. 
 
 - *Results*. The original study finds a statistically significant estimate of the interaction of treatment and news truthfulness, i.e., treated participants were less willing to share headlines that were perceived as less accurate. The replication study failed to detect such effect in the first stage with N = 701, but find a significant but smaller effect after collecting the second round of data with pooled N = 1583.
 
