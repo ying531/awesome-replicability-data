@@ -1,0 +1,952 @@
+---
+title: "Data cleaning"
+author: "Ying Jin"
+date: '2023-10-19'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(haven)
+library(readxl)
+library(tidyverse)
+```
+
+
+This document cleans datasets from the Pipeline Project. 
+
+```{r}
+data1 = read.csv("./PIPR_1.csv")
+data2 = read.csv("./PIPR_2.csv")
+data3 = read.csv("./PIPR_3.csv")
+```
+
+
+```{r}
+data1 = read_sav("./PPIR_1.sav")
+data2 = read_sav("./PPIR_2.sav")
+data3 = read_sav("./PPIR_3.sav")
+```
+
+
+
+
+### Study 7: Intuive Economics
+ 
+The first dataset contains three studies: Intuitive Economics, Burn-in-Hell, and Moral Inversion. 
+We first process study 7: Intuitive Economics.
+
+```{r}
+# *** Intuitive Economics
+# *** analysis is contrasting cor(ie_com_htxfair, ie_comb_htxgood) between ie_condition == 1 and == 2 groups.
+ie_cols = colnames(data1)[as.vector(sapply(colnames(data1), function(x) substr(x,1,2))) == "ie"]
+demo_cols = c("poltclid", "gender", "yearbirth", "countrybir", "englishexp", "ethnicity", 
+              "parented", "befstudies", "citytown", "postalcode", "honestansw", "familyinc", "mturkhowm")
+data_all_intuitive_economics <- cbind(data1 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, mod3location_intecon, 
+         mod4onlnlab, subjectoverall, subjectinDC, subjectid), 
+  data1[,ie_cols],
+  data1[,demo_cols])
+
+write.csv(data_all_intuitive_economics, "./clean_no_filter/7_intuitive_economics.csv")
+
+# recoding data 
+data_clean_ie = data_all_intuitive_economics %>% 
+  select(c("datacollection", "ie_condition", "ie1_taxesf", "ie2_htxf", 
+           "ie1_taxesg", "ie2_htxg", demo_cols)) %>% 
+  filter(datacollection > 0) %>% arrange(datacollection) %>%
+  mutate("htxfair" = ie1_taxesf, "htxgood" = ie1_taxesg, "condition" = ie_condition) %>% 
+  filter(!is.na(ie_condition))
+# merge outcomes in two conditions
+data_clean_ie$htxfair[data_clean_ie$ie_condition==2] = data_clean_ie$ie2_htxf[data_clean_ie$ie_condition==2]
+data_clean_ie$htxgood[data_clean_ie$ie_condition==2] = data_clean_ie$ie2_htxg[data_clean_ie$ie_condition==2]
+# preserve relevant columns and dropping NAs in key variables
+data_clean_ie = data_clean_ie %>% 
+  select(c("datacollection", "condition", "htxfair", "htxgood", demo_cols)) %>%
+  filter(!is.na(htxfair), !is.na(htxgood))
+
+write.csv(data_clean_ie, "./clean_for_analysis/7_intuitive_economics.csv")
+
+# count NA
+na_count_ie = data_clean_ie %>% group_by(datacollection) %>% summarise_all(~ sum(is.na(.))) 
+na_count_ie$nsample = data_clean_ie %>% group_by(datacollection) %>% summarize(n())
+
+
+# ******************
+# encoding in the original sps script for reference: 
+# ***
+# * ie12comb_htxfair 
+# ***
+# 
+# DO IF  (ie_condition=1).
+# RECODE ie1_taxesf_re (1=1) (2=2) (3=3) (4=4) (5=5) (6=6) (7=7) INTO ie12comb_htxfair .
+# END IF.
+# EXECUTE.
+# 
+# DO IF  (ie_condition=2).
+# RECODE ie2_htxf (1=1) (2=2) (3=3) (4=4) (5=5) (6=6) (7=7) INTO ie12comb_htxfair .
+# END IF.
+# EXECUTE.
+# 
+# ***
+# * ie12comb_htxgood
+# ***
+# 
+# DO IF  (ie_condition=1).
+# RECODE ie1_taxesg (1=1) (2=2) (3=3) (4=4) (5=5) (6=6) (7=7) INTO ie12comb_htxgood .
+# END IF.
+# EXECUTE.
+# 
+# DO IF  (ie_condition=2).
+# RECODE ie2_htxg (1=1) (2=2) (3=3) (4=4) (5=5) (6=6) (7=7) INTO ie12comb_htxgood .
+# END IF.
+# EXECUTE.
+# ******************
+
+```
+
+
+### Study 8: Burn-in-Hell
+
+We now process data for study 8 in the pipeline project paper: Burn-in-Hell. 
+
+```{r} 
+# *** Burn in Hell
+# *** analysis is paired t-test of BIH_executives - BIH_vandals
+bih_cols = colnames(data1)[as.vector(sapply(colnames(data1), function(x) substr(x,1,3))) == "BIH"]
+demo_cols = c("poltclid", "gender", "yearbirth", "countrybir", "englishexp", "ethnicity", 
+              "parented", "befstudies", "citytown", "postalcode", "honestansw", "familyinc", "mturkhowm")
+data_all_burn_in_hell <- cbind(data1 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, mod3location_intecon, 
+         mod4onlnlab, subjectoverall, subjectinDC, subjectid), 
+  data1[,bih_cols],
+  data1[,demo_cols])
+
+write.csv(data_all_burn_in_hell, "./clean_no_filter/8_burn_in_hell.csv")
+```
+
+```{r}
+# recoding data
+data_clean_bih = data_all_burn_in_hell %>% filter(datacollection > 0) %>% arrange(datacollection) %>% 
+  select(c("datacollection", "BIH_executives", "BIH_vandals", demo_cols)) %>%
+  filter(!is.na(BIH_executives), !is.na(BIH_vandals))
+write.csv(data_clean_bih, "./clean_for_analysis/8_burn_in_hell.csv")
+```
+
+
+### Study 5: Moral Inversion
+
+
+```{r} 
+# *** Moral Inversion
+# *** analysis is difference-in-means for 
+miv_cols = colnames(data1)[as.vector(sapply(colnames(data1), function(x) substr(x,1,2))) == "MI"]
+demo_cols = c("poltclid", "gender", "yearbirth", "countrybir", "englishexp", "ethnicity", 
+              "parented", "befstudies", "citytown", "postalcode", "honestansw", "familyinc", "mturkhowm")
+data_all_moral_inversion <- cbind(data1 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, mod3location_intecon, 
+         mod4onlnlab, subjectoverall, subjectinDC, subjectid), 
+  data1[,miv_cols],
+  data1[,demo_cols])
+
+write.csv(data_all_moral_inversion, "./clean_no_filter/5_moral_inversion.csv")
+```
+
+```{r} 
+# encode the condition as did in the SPSS file
+data_clean_miv = data_all_moral_inversion %>% filter(datacollection > 0) %>% arrange(datacollection) %>% 
+  mutate(mi_condition = case_when(
+    MI1_good > 0 ~ 1,
+    MI2_good > 0 ~ 2,
+    MI3_good > 0 ~ 3,
+    MI4_good > 0 ~ 4,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(mi_condition))
+
+# encode MI_good and MI_moral as in the SPSS file
+data_clean_miv = data_clean_miv %>% 
+    mutate(mi_good = case_when(
+    mi_condition == 1 ~ MI1_good,
+    mi_condition == 2 ~ MI2_good,
+    mi_condition == 3 ~ MI3_good,
+    mi_condition == 4 ~ MI4_good,
+    TRUE ~ NA_real_
+  )) %>% 
+    mutate(mi_moral = case_when(
+    mi_condition == 1 ~ MI1_moral,
+    mi_condition == 2 ~ MI2_moral,
+    mi_condition == 3 ~ MI3_moral,
+    mi_condition == 4 ~ MI4_moral,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(mi_good), !is.na(mi_moral))
+
+# encode moralgood as (moral+good)/2 as in the SPSS file
+data_clean_miv = data_clean_miv %>% mutate(moralgood = (mi_moral+mi_good)/2) %>%  
+  select(c("datacollection", "moralgood", "mi_moral", "mi_good", "mi_condition", demo_cols))  
+write.csv(data_clean_miv, "./clean_for_analysis/5_moral_inversion.csv")
+
+
+## original SPSS code for condition assignment 
+# ********************
+# *assign the condition
+# ********************
+# 
+# DO IF  (MI1_good > 0).
+# RECODE MI1_good (9=1) (8=1) (7=1) (6=1) (5=1) (4=1) (3=1) (2=1) (1=1) INTO mi_condition.
+# END IF.
+# EXECUTE.
+# 
+# DO IF  (MI2_good > 0).
+# RECODE MI2_good (9=2) (8=2) (7=2) (6=2) (5=2) (4=2) (3=2) (2=2) (1=2) INTO mi_condition.
+# END IF.
+# EXECUTE.
+# 
+# DO IF  (MI3_good > 0).
+# RECODE MI3_good (9=3) (8=3) (7=3) (6=3) (5=3) (4=3) (3=3) (2=3) (1=3) INTO mi_condition.
+# END IF.
+# EXECUTE.
+# 
+# DO IF  (MI4_good > 0).
+# RECODE MI4_good (9=4) (8=4) (7=4) (6=4) (5=4) (4=4) (3=4) (2=4) (1=4) INTO mi_condition.
+# END IF.
+# EXECUTE.
+
+## Original SPSS code for MI_moralgoood
+# COMPUTE MI_moralgood=(moral+good)/2.
+# VARIABLE LABELS  MI_moralgood '(moral+good)/2'.
+# EXECUTE.
+```
+
+
+### Study 9: Presumption of Guilt
+
+```{r} 
+# *** Presumption of Guilt
+# *** analysis is difference-in-means for PG_companyevaluation between condition 1 (no investigation) and 4 (guilty)
+pg_cols = colnames(data2)[as.vector(sapply(colnames(data2), function(x) substr(x,1,1))) == "c"]
+demo_cols = c("pltclideo", "gender", "yearbirth", "countrybir", "engexp", "ethnicity", 
+              "parented", "beforeres", "beforethes", "citytown", "postalcode", "honest_A", "faminc", "mturkhowm")
+data_all_presumption_guilt <- cbind(data2 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, mod3location_presumption, mod3location_moralcliff, mod3location_badtipper, 
+         mod4onlnlab,  subjectoverall, subjectindc, surveynumber), 
+  data2[,pg_cols],
+  data2[,demo_cols]) 
+data_all_presumption_guilt = data_all_presumption_guilt[, unique(colnames(data_all_presumption_guilt))]
+
+write.csv(data_all_presumption_guilt, "./clean_no_filter/9_presumption_guilt.csv")
+```
+
+
+```{r} 
+# encode the condition as did in the SPSS file
+data_clean_pg = data_all_presumption_guilt %>% filter(datacollection > 0) %>% arrange(datacollection) %>% 
+  mutate(pg_condition = case_when(
+    c1_donothin > 0 ~ 1,
+    c2_inv > 0 ~ 2,
+    c3_innocentcon > 0 ~ 3,
+    c4_guilty > 0 ~ 4,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(pg_condition))
+
+# encode good, moral,  as in the SPSS file
+data_clean_pg = data_clean_pg %>% 
+    mutate(pg_good = case_when(
+      pg_condition == 1 ~ c1_good,
+      pg_condition == 2 ~ c2_good,
+      pg_condition == 3 ~ c3_good,
+      pg_condition == 4 ~ c4_good,
+      TRUE ~ NA_real_
+  )) %>% filter(!is.na(pg_good)) %>% 
+    mutate(pg_ethical = case_when(
+      pg_condition == 1 ~ c1_ethical,
+      pg_condition == 2 ~ c2_ethical,
+      pg_condition == 3 ~ c3_ethical,
+      pg_condition == 4 ~ c4_ethical,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(pg_ethical)) %>% 
+    mutate(pg_moral = case_when(
+      pg_condition == 1 ~ c1_moral,
+      pg_condition == 2 ~ c2_moral,
+      pg_condition == 3 ~ c3_moral,
+      pg_condition == 4 ~ c4_moral,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(pg_moral)) %>% 
+    mutate(pg_responsibl = case_when(
+    pg_condition == 1 ~ c1_resp,
+    pg_condition == 2 ~ c2_resp,
+    pg_condition == 3 ~ c3_resp,
+    pg_condition == 4 ~ c4_resp,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(pg_responsibl)) %>% 
+    mutate(pg_honest = case_when(
+    pg_condition == 1 ~ c1_honest,
+    pg_condition == 2 ~ c2_honest,
+    pg_condition == 3 ~ c3_honest,
+    pg_condition == 4 ~ c4_honest,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(pg_honest)) %>% 
+    mutate(pg_innocent = case_when(
+    pg_condition == 1 ~ c1_innocent,
+    pg_condition == 2 ~ c2_innocent,
+    pg_condition == 3 ~ c3_innocent,
+    pg_condition == 4 ~ c4_innocent,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(pg_innocent)) %>% mutate(companyevaluation = (pg_good+pg_ethical+pg_responsibl+pg_honest+pg_innocent)/6)
+   
+
+# encode moralgood as (moral+good)/2 as in the SPSS file
+data_clean_pg = data_clean_pg %>%  
+  select(c("datacollection", "companyevaluation", "pg_condition", "pg_good", "pg_ethical", 
+           "pg_ethical", "pg_responsibl", "pg_honest", "pg_innocent", demo_cols))  
+write.csv(data_clean_pg, "./clean_for_analysis/9_presumption_guilt.csv")
+
+ 
+```
+
+
+
+
+
+
+### Study 6: Moral cliff
+
+```{r} 
+# *** Moral Cliff
+# *** analysis is paired t-test of mc_ps_dishonesty and mc_dishonesty 
+mc_cols = (read_excel("./PPIR_Codebook.xlsx", sheet = "PIPELINE_2") %>% filter(Study == "Moral Cliff"))$Variable_Name
+demo_cols = c("pltclideo", "gender", "yearbirth", "countrybir", "engexp", "ethnicity", 
+              "parented", "beforeres", "beforethes", "citytown", "postalcode", "honest_A", "faminc", "mturkhowm")
+data_all_moral_cliff <- cbind(data2 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, 
+         mod3location_moralcliff,  
+         mod4onlnlab,  subjectoverall, subjectindc, surveynumber), 
+  data2[,mc_cols],
+  data2[,demo_cols]) 
+data_all_moral_cliff = data_all_moral_cliff[, unique(colnames(data_all_moral_cliff))]
+
+write.csv(data_all_moral_cliff, "./clean_no_filter/6_moral_cliff.csv")
+```
+
+```{r}
+data_clean_mc = data_all_moral_cliff %>% filter(datacollection > 0) %>% arrange(datacollection) %>% 
+  mutate(moral_condition = case_when(
+    glmodel > 0 ~ 1,
+    psmodel_A > 0 ~ 0,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(moral_condition)) 
+
+# generate variables for mc_accuracy
+data_clean_mc = data_clean_mc %>%
+  mutate(new_con_creameffec = case_when( 
+    moral_condition == 1 ~ effectiven,
+    moral_condition == 0 ~ creameffec_B,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_con_creameffec)) %>%
+  mutate(new_con_correctimp_A = case_when(
+    moral_condition == 1 ~ correctimp,
+    moral_condition == 0 ~ correctimp_C,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_con_correctimp_A)) %>%
+  mutate(mc_accuracy = (new_con_creameffec + new_con_correctimp_A)/2) %>%
+  filter(!is.na(mc_accuracy)) 
+
+# generate variables for mc_ps_accuracy
+data_clean_mc = data_clean_mc %>% 
+  mutate(new_ps_creameffec = case_when( 
+    moral_condition == 1 ~ ps_creameffec,
+    moral_condition == 0 ~ ps_creameffec_A,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_ps_creameffec)) %>%
+  mutate(new_ps_correctimp_A = case_when(
+    moral_condition == 1 ~ ps_correctimp_A,
+    moral_condition == 0 ~ ps_correctimp_B,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_ps_correctimp_A)) %>%
+  mutate(mc_ps_accuracy = (new_ps_creameffec+new_ps_correctimp_A)/2) %>%
+  filter(!is.na(mc_ps_accuracy)) 
+
+# generate variables for mc_dishonesty
+data_clean_mc = data_clean_mc %>% 
+  mutate(new_con_addishones = case_when( 
+    moral_condition == 1 ~ addishons,
+    moral_condition == 0 ~ addishones_B,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_con_addishones)) %>%
+  mutate(new_con_adfraudul = case_when(
+    moral_condition == 1 ~ adfraud,
+    moral_condition == 0 ~ adfraudu,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_con_adfraudul)) %>% 
+  mutate(new_con_adfalse_A = case_when(
+    moral_condition == 1 ~ adfalse,
+    moral_condition == 0 ~ adfalse_C,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_con_adfalse_A)) %>% 
+  mutate(new_con_adfalse_A_re = 8 - new_con_adfalse_A) %>% 
+  mutate(mc_dishonesty = (new_con_addishones+new_con_adfraudul+new_con_adfalse_A_re)/3) %>%
+  filter(!is.na(mc_dishonesty)) 
+
+# generate variables for mc_ps_dishonesty
+data_clean_mc = data_clean_mc %>% 
+  mutate(new_ps_addishones = case_when( 
+    moral_condition == 1 ~ ps_addishones,
+    moral_condition == 0 ~ ps_addishones_A,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_ps_addishones)) %>%
+  mutate(new_ps_adfraudul = case_when(
+    moral_condition == 1 ~ ps_adfraudul,
+    moral_condition == 0 ~ ps_adfraud_A,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_ps_adfraudul)) %>% 
+  mutate(new_ps_adfalse_A = case_when(
+    moral_condition == 1 ~ ps_adfalse_A,
+    moral_condition == 0 ~ ps_adfalse_B,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_ps_adfalse_A)) %>% 
+  mutate(new_ps_adfalse_A_re = 8 - new_ps_adfalse_A) %>% 
+  mutate(mc_ps_dishonesty=(new_ps_addishones + new_ps_adfraudul + new_ps_adfalse_A_re)/3) %>%
+  filter(!is.na(mc_ps_dishonesty)) 
+
+# generate mc_punitiveness
+data_clean_mc = data_clean_mc %>% 
+  mutate(new_con_adbanned_A = case_when( 
+    moral_condition == 1 ~ adbanned,
+    moral_condition == 0 ~ adbanned_C,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_con_adbanned_A)) %>%
+  mutate(new_con_compfined_A = case_when(
+    moral_condition == 1 ~ compfined,
+    moral_condition == 0 ~ compfined_C,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_con_compfined_A)) %>%
+  mutate(mc_punitiveness=(new_con_adbanned_A+new_con_compfined_A)/2) %>%
+  filter(!is.na(mc_punitiveness)) 
+
+
+# generate mc_ps_punitiveness
+data_clean_mc = data_clean_mc %>% 
+  mutate(new_ps_adbanned_A = case_when( 
+    moral_condition == 1 ~ ps_adbanned_A,
+    moral_condition == 0 ~ ps_adbanned_B,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_ps_adbanned_A)) %>%
+  mutate(new_ps_compfined_A = case_when(
+    moral_condition == 1 ~ ps_compfined_A,
+    moral_condition == 0 ~ ps_compfined_B,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_ps_compfined_A)) %>%
+  mutate(mc_ps_punitiveness=(new_ps_adbanned_A + new_ps_compfined_A)/2) %>%
+  filter(!is.na(mc_ps_punitiveness)) 
+
+# generate new_con_intentmisr_A
+data_clean_mc = data_clean_mc %>% 
+  mutate(new_con_intentmisr_A = case_when( 
+    moral_condition == 1 ~ intentmisr,
+    moral_condition == 0 ~ intentmisr_C,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_con_intentmisr_A)) 
+
+# generate new_ps_intentmisr_A
+data_clean_mc = data_clean_mc %>%  
+  mutate(new_ps_intentmisr_A = case_when(
+    moral_condition == 1 ~ ps_intentmisr_A,
+    moral_condition == 0 ~ ps_intentmisr_B,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_ps_intentmisr_A))  
+
+# generate new_con_justoself
+data_clean_mc = data_clean_mc %>% 
+  mutate(new_con_justoself = case_when( 
+    moral_condition == 1 ~ justtoself,
+    moral_condition == 0 ~ justtoself_B,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_con_justoself)) 
+
+# generate new_ps_justoself
+data_clean_mc = data_clean_mc %>% 
+  mutate(new_ps_justoself = case_when( 
+    moral_condition == 1 ~ ps_justoself,
+    moral_condition == 0 ~ ps_justtoself_A,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(new_ps_justoself)) 
+
+
+data_clean_mc = data_clean_mc %>%  
+  select(c("datacollection", "moral_condition", "mc_accuracy", "mc_ps_accuracy", 
+           "mc_dishonesty", "mc_ps_dishonesty", "mc_punitiveness", "mc_ps_punitiveness", 
+           "new_con_intentmisr_A", "new_ps_intentmisr_A", "new_con_justoself", "new_ps_justoself",
+           demo_cols))  
+write.csv(data_clean_mc, "./clean_for_analysis/6_moral_cliff.csv")
+```
+
+
+### Study 3: Bad Tipper
+
+```{r} 
+# *** Bad Tipper
+# *** analysis is t-test between conditions 1 and 2
+bt_cols = (read_excel("./PPIR_Codebook.xlsx", sheet = "PIPELINE_2") %>% filter(Study == "Bad Tipper"))$Variable_Name
+demo_cols = c("pltclideo", "gender", "yearbirth", "countrybir", "engexp", "ethnicity", 
+              "parented", "beforeres", "beforethes", "citytown", "postalcode", "honest_A", "faminc", "mturkhowm")
+data_all_bad_tipper <- cbind(data2 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, 
+         mod3location_badtipper,  
+         mod4onlnlab,  subjectoverall, subjectindc, surveynumber), 
+  data2[,bt_cols],
+  data2[,demo_cols]) 
+data_all_bad_tipper = data_all_bad_tipper[, unique(colnames(data_all_bad_tipper))]
+
+write.csv(data_all_bad_tipper, "./clean_no_filter/3_bad_tipper.csv")
+```
+
+
+```{r}
+data_clean_bt = data_all_bad_tipper %>% filter(datacollection > 0) %>% arrange(datacollection)
+
+data_clean_bt = data_clean_bt %>% 
+  mutate(condition = case_when(
+    c_pennies > 0 ~ 1,
+    c_lesstip > 0 ~ 0,
+    TRUE ~ NA_real_
+  )) %>% filter(!is.na(condition)) 
+
+data_clean_bt = data_clean_bt %>%
+  mutate(tipper_diresppers = case_when(
+    condition == 1 ~ diresppers,
+    condition == 0 ~ disrpers
+  )) %>%
+  filter(!is.na(tipper_diresppers)) %>% 
+  mutate(tipper_gdmorlcons_re = case_when(
+    condition == 1 ~ 8 - gdmorlcons,
+    condition == 0 ~ 8 - gdmrlconsc
+  )) %>%
+  filter(!is.na(tipper_gdmorlcons_re)) %>% 
+  mutate(tipper_closefrend_re = case_when(
+    condition == 1 ~ 8 - closefrend,
+    condition == 0 ~ 8 - clsefrend
+  )) %>%
+  filter(!is.na(tipper_closefrend_re)) %>% 
+  mutate(tipper_goodpers_re = case_when(
+    condition == 1 ~ 8 - goodpersp,
+    condition == 0 ~ 8 - goodperst
+  )) %>%
+  filter(!is.na(tipper_goodpers_re)) %>% 
+  mutate(tipper_personjudg = (tipper_diresppers + 
+    tipper_gdmorlcons_re+tipper_closefrend_re+tipper_goodpers_re)/4)
+
+data_clean_bt = data_clean_bt %>% 
+  select(c("datacollection", "condition", "tipper_diresppers", "tipper_gdmorlcons_re", 
+           "tipper_closefrend_re", "tipper_goodpers_re", "tipper_personjudg",
+           demo_cols))
+write.csv(data_clean_bt, "./clean_for_analysis/3_bad_tipper.csv")
+
+```
+
+
+
+## Study 1: Bigot Misanthrope
+
+```{r} 
+# *** Bigot Misanthrope
+# *** t-test comparing ratings of bigot_personjudge with the scale midpoint of 4
+bm_cols = (read_excel("./PPIR_Codebook.xlsx", sheet = "PIPELINE_3") %>% filter(Study == "Bigot Misanthrope"))$Variable_Name
+demo_cols = c("pltclideo", "gender", "yearbirth", "countrybir", "expeng", "ethnicity", 
+              "parented", "bfrres", "bfrthese", "citytown", "postalcode", "honest", "faminc", "mturkhowm")
+data_all_bigot_misanth <- cbind(data3 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, 
+         mod3location_bigot,  
+         mod4onlnlab,  subjectoverall, subjectindc), 
+  data3[,bm_cols],
+  data3[,demo_cols]) 
+data_all_bigot_misanth = data_all_bigot_misanth[, unique(colnames(data_all_bigot_misanth))]
+
+write.csv(data_all_bigot_misanth, "./clean_no_filter/1_bigot_misanthrope.csv")
+```
+
+
+```{r}
+data_clean_bm = data_all_bigot_misanth %>% filter(datacollection > 0) %>% arrange(datacollection)
+
+data_clean_bm = data_clean_bm %>% 
+  mutate(condition = case_when(
+    Cjohn1st > 0 ~ 1,
+    CR1st > 0 ~ 0
+  )) %>% 
+  filter(!is.na(condition)) %>%
+  mutate(
+    new_whomoreimm = case_when(
+      condition == 1 ~ 8 - whomoreimm,
+      condition == 0 ~ moreimm
+    )
+  ) %>% filter(!is.na(new_whomoreimm)) %>% 
+  mutate(
+    new_whoblamew = case_when(
+      condition == 1 ~ 8 - whoblamew,
+      condition == 0 ~ moremrlblm
+    )
+  ) %>% filter(!is.na(new_whoblamew)) %>%
+  mutate(
+    bigot_personjudge=(new_whomoreimm + new_whoblamew)/2
+  ) %>% 
+  mutate(
+    new_acttellmor = case_when(
+      condition == 1 ~ 8 - acttellmor,
+      condition == 0 ~acttellmor_A
+    )
+  ) %>% filter(!is.na(new_acttellmor)) %>% 
+  mutate(
+    new_behtellmor = case_when(
+      condition == 1 ~ 8 - behtellmor,
+      condition == 0 ~ behtellmor_A
+    )
+  ) %>% filter(!is.na(new_behtellmor)) %>%
+  mutate(
+    bigot_infovalue=(new_acttellmor + new_behtellmor)/2
+  )
+
+data_clean_bm = data_clean_bm %>% 
+  select(c("datacollection", "condition", "new_whomoreimm", "new_whoblamew", 
+           "bigot_personjudge", "new_acttellmor", "new_behtellmor", "bigot_infovalue", 
+           demo_cols))
+
+write.csv(data_clean_bm, "./clean_for_analysis/1_bigot_misanthrope.csv")
+```
+
+## Study 2: Cold-hearted prosociality effect
+
+```{r}
+# *** Cold-hearted prosociality effect
+# *** analysis is t-test comparing ratings of cold_moral with ratings of cold_traits
+ch_cols = (read_excel("./PPIR_Codebook.xlsx", sheet = "PIPELINE_3") %>% filter(Study == "Cold-Hearted Prosociality"))$Variable_Name
+demo_cols = c("pltclideo", "gender", "yearbirth", "countrybir", "expeng", "ethnicity", 
+              "parented", "bfrres", "bfrthese", "citytown", "postalcode", "honest", "faminc", "mturkhowm")
+data_all_cold_heart <- cbind(data3 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, 
+         mod3location_coldheart,  
+         mod4onlnlab,  subjectoverall, subjectindc), 
+  data3[,ch_cols],
+  data3[,demo_cols]) 
+data_all_cold_heart = data_all_cold_heart[, unique(colnames(data_all_cold_heart))]
+
+write.csv(data_all_cold_heart, "./clean_no_filter/2_cold_heart.csv")
+```
+
+
+```{r}
+data_clean_ch = data_all_cold_heart %>% filter(datacollection > 0) %>% arrange(datacollection)
+
+data_clean_ch = data_clean_ch %>% 
+  mutate(
+    condition = case_when(
+      CL1st > 0 ~ 1, 
+      CKaren1st > 0 ~ 0,
+    )
+  ) %>% filter(!is.na(condition))
+
+# code_moral and related variables
+data_clean_ch = data_clean_ch %>%
+  mutate(
+    new_benefitsoc = case_when(
+      condition == 1 ~ 8 - benefitsoc,
+      condition == 0 ~ actbftsoc
+    )
+  ) %>% filter(!is.na(new_benefitsoc)) %>% 
+  mutate(
+    new_mrlcontr = case_when(
+      condition == 1 ~ 8-mrlcontr,
+      condition == 0 ~ mrlcontr_A
+    )
+  ) %>% filter(!is.na(new_mrlcontr)) %>% 
+  mutate(
+    new_mrlpraisew = case_when(
+      condition == 1 ~ 8-mrlpraisew,
+      condition == 0 ~ mrlpraisew_A
+    )
+  ) %>% filter(!is.na(new_mrlpraisew)) %>% 
+  mutate(
+    new_actmrlcont = case_when(
+      condition == 1 ~ 8 - actmrlcont,
+      condition == 0 ~ actmrlcont_A
+    )
+  ) %>% filter(!is.na(new_actmrlcont)) %>% 
+  mutate(
+    cold_moral=(new_benefitsoc+new_mrlcontr+new_mrlpraisew+new_actmrlcont)/4
+  )
+
+# cold_traits and related variables
+data_clean_ch = data_clean_ch %>%
+  mutate(
+    new_traits_1 = case_when(
+      condition == 1 ~ 8-traits_1,
+      condition == 0 ~ traits_1_A
+    )
+  ) %>% filter(!is.na(new_traits_1)) %>% 
+  mutate(
+    new_traits_2 = case_when(
+      condition == 1 ~ traits_2,
+      condition == 0 ~ 8-traits_2_A
+    )
+  ) %>% filter(!is.na(new_traits_2)) %>% 
+  mutate(
+    new_traits_3 = case_when(
+      condition == 1 ~ traits_3,
+      condition == 0 ~ 8-traits_3_A
+    )
+  ) %>% filter(!is.na(new_traits_3)) %>% 
+  mutate(
+    new_traits_4 = case_when(
+      condition == 1 ~ 8-traits_4,
+      condition == 0 ~ traits_4_A
+    )
+  ) %>% filter(!is.na(new_traits_4)) %>% 
+  mutate(
+    cold_traits=(new_traits_1 + new_traits_2 + new_traits_3 + new_traits_4)/4
+  )
+
+data_clean_ch = data_clean_ch %>% 
+  select(c("datacollection", "condition", 
+           "cold_moral", "new_benefitsoc", "new_mrlcontr", "new_mrlpraisew", "new_actmrlcont", 
+           "cold_traits", "new_traits_1", "new_traits_2", "new_traits_3", "new_traits_4",
+           demo_cols))
+write.csv(data_clean_ch, "./clean_for_analysis/2_cold_heart.csv")
+```
+
+
+
+## Study 4: Belief-act inconsistency effect
+
+```{r}
+# *** Belief-act inconsistency effect
+# *** analysis is T-test of beliefact_mrlblmw_rec between conditions 3 and 1
+bac_cols = (read_excel("./PPIR_Codebook.xlsx", sheet = "PIPELINE_3") %>% filter(Study == "Belieft Act Consistency"))$Variable_Name
+demo_cols = c("pltclideo", "gender", "yearbirth", "countrybir", "expeng", "ethnicity", 
+              "parented", "bfrres", "bfrthese", "citytown", "postalcode", "honest", "faminc", "mturkhowm")
+data_all_belief_act <- cbind(data3 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, 
+         mod3location_beliefact,  
+         mod4onlnlab,  subjectoverall, subjectindc), 
+  data3[,bac_cols],
+  data3[,demo_cols]) 
+data_all_belief_act = data_all_belief_act[, unique(colnames(data_all_belief_act))]
+
+write.csv(data_all_belief_act, "./clean_no_filter/4_belief_act.csv")
+```
+
+```{r}
+data_clean_bac = data_all_belief_act %>% filter(datacollection > 0) %>% arrange(datacollection)
+
+data_clean_bac = data_clean_bac %>% 
+  mutate(
+    condition = case_when(
+      Canmlrigh > 0 ~ 1, 
+      CDWB > 0 ~ 2, 
+      Chunter > 0 ~ 3
+    ) 
+  ) %>% filter(!is.na(condition))
+
+# beliefact_mrlblmw
+data_clean_bac = data_clean_bac %>% 
+  mutate(
+    beliefact_mrlblmw = case_when(
+      condition == 1 ~ mrlblmw,
+      condition == 2 ~ mrlblamew,
+      condition == 3 ~  blamew
+    ) 
+  ) %>% filter(!is.na(beliefact_mrlblmw)) %>% 
+  mutate(beliefact_mrlblmw_rec = beliefact_mrlblmw - 6)
+
+# beliefact_warmth
+data_clean_bac = data_clean_bac %>% 
+  mutate(
+    beliefact_warmth = case_when(
+      condition == 1 ~ warmth,
+      condition == 2 ~ warmth_A,
+      condition == 3 ~ warmth_B
+    ) 
+  ) %>% filter(!is.na(beliefact_warmth)) %>%
+  mutate(beliefact_warmth_rec = beliefact_warmth - 6)
+
+# beliefact_trustw
+data_clean_bac = data_clean_bac %>% 
+  mutate(
+    beliefact_trustw = case_when(
+      condition == 1 ~ trustw,
+      condition == 2 ~ trustw_A,
+      condition == 3 ~ trustw_B
+    ) 
+  ) %>% filter(!is.na(beliefact_trustw)) %>%
+  mutate(beliefact_trustw_rec = beliefact_trustw - 6)
+
+# beliefact_hypocrite
+data_clean_bac = data_clean_bac %>% 
+  mutate(
+    beliefact_hypocrite = case_when(
+      condition == 1 ~ hypocrite,
+      condition == 2 ~ hypocrite_A,
+      condition == 3 ~ hypocrite_B
+    ) 
+  ) %>% filter(!is.na(beliefact_hypocrite)) %>%
+  mutate(beliefact_hypocrite_rec = beliefact_hypocrite - 6)
+
+# beliefact_huntopinio
+data_clean_bac = data_clean_bac %>% 
+  mutate(
+    beliefact_huntopinio = case_when(
+      condition == 1 ~ huntopinio,
+      condition == 2 ~ huntopinio_A,
+      condition == 3 ~ huntopinio_B
+    ) 
+  ) %>% filter(!is.na(beliefact_huntopinio)) %>%
+  mutate(beliefact_huntopinio_rec = beliefact_huntopinio - 6)
+
+data_clean_bac = data_clean_bac %>% 
+  select(c("datacollection", "condition", 
+           "beliefact_mrlblmw", "beliefact_mrlblmw_rec", "beliefact_warmth", 
+           "beliefact_warmth_rec", "beliefact_trustw", "beliefact_trustw_rec",
+           "beliefact_hypocrite", "beliefact_hypocrite_rec", "beliefact_huntopinio", 
+           "beliefact_huntopinio_rec",
+           demo_cols))
+write.csv(data_clean_bac, "./clean_for_analysis/4_belief_act.csv")
+```
+
+
+## Study 10: Higher standard effect
+
+```{r}
+# *** Higher standard effect
+# *** analysis is 
+# *** *** Charity Conditions: T-test between Conditions 4 (monetary-salary only) and 6 (small perk)
+# *** *** Company Conditions: T-test between Conditions 3 (small perk) and 1 (monetary-salary only)
+hs_cols = (read_excel("./PPIR_Codebook.xlsx", sheet = "PIPELINE_3") %>% 
+              filter(Study == "Higher Standards"))$Variable_Name
+hs_cols = intersect(hs_cols, colnames(data3))
+demo_cols = c("pltclideo", "gender", "yearbirth", "countrybir", "expeng", "ethnicity", 
+              "parented", "bfrres", "bfrthese", "citytown", "postalcode", "honest", "faminc", "mturkhowm")
+data_all_higher_standard <- cbind(data3 %>% 
+  select(datacollection, mod1US, mod2poptype, mod2popmajor, 
+         mod3location_beliefact,  
+         mod4onlnlab,  subjectoverall, subjectindc), 
+  data3[,hs_cols],
+  data3[,demo_cols]) 
+data_all_higher_standard = data_all_higher_standard[, unique(colnames(data_all_higher_standard))]
+
+write.csv(data_all_higher_standard, "./clean_no_filter/10_higher_standard.csv")
+```
+
+```{r}
+data_clean_hs = data_all_higher_standard %>% filter(datacollection > 0) %>% arrange(datacollection)
+
+data_clean_hs = data_clean_hs %>% 
+  mutate( # 0 = company, 1 = charity
+    standard_org = case_when(
+      standard_condition <=3 ~ 0,
+      standard_condition >=4 ~ 1
+    )
+  ) %>% filter(!is.na(standard_org))
+
+
+data_clean_hs = data_clean_hs %>% 
+  mutate( # standard_perk: 1=no perk 2=big perk 3=small perk
+    standard_perk = case_when(
+      standard_condition %in% c(1,4) ~ 1,
+      standard_condition %in% c(2,5) ~ 2,
+      standard_condition %in% c(3,6) ~ 3
+    )
+  ) %>% filter(!is.na(standard_perk))
+
+data_clean_hs = data_clean_hs %>% 
+  mutate(
+    mreselfish = case_when(
+      standard_condition == 1 ~ c1mreselfish,
+      standard_condition == 2 ~ c2mreselfish,
+      standard_condition == 3 ~ c3mreselfish,
+      standard_condition == 4 ~ c4mreselfish,
+      standard_condition == 5 ~ c5mreselfish,
+      standard_condition == 6 ~ c6mreselfish
+    )
+  ) %>% filter(!is.na(mreselfish)) %>%
+  mutate(
+    moreresp = case_when(
+      standard_condition == 1 ~ c1moreresp,
+      standard_condition == 2 ~ c2moreresp,
+      standard_condition == 3 ~ c3moreresp,
+      standard_condition == 4 ~ c4moreresp,
+      standard_condition == 5 ~ c5moreresp,
+      standard_condition == 6 ~ c6moreresp
+    )
+  ) %>% filter(!is.na(moreresp)) %>%
+  mutate(
+    moreupstan = case_when(
+      standard_condition == 1 ~ c1moreupstan,
+      standard_condition == 2 ~ c2moreupstan,
+      standard_condition == 3 ~ c3moreupstan,
+      standard_condition == 4 ~ c4moreupstan,
+      standard_condition == 5 ~ c5moreupstan,
+      standard_condition == 6 ~ c6moreupstan
+    )
+  ) %>% filter(!is.na(moreupstan)) %>%
+  mutate(
+    orgbintere = case_when(
+      standard_condition == 1 ~ c1orgbintere,
+      standard_condition == 2 ~ c2orgbintere,
+      standard_condition == 3 ~ c3orgbintere,
+      standard_condition == 4 ~ c4orgbintere,
+      standard_condition == 5 ~ c5orgbintere,
+      standard_condition == 6 ~ c6orgbintere
+    )
+  ) %>% filter(!is.na(orgbintere)) %>%
+  mutate(
+    investdonate = case_when(
+      standard_condition == 1 ~ c1invwith,
+      standard_condition == 2 ~ c2invwith,
+      standard_condition == 3 ~ c3invwith,
+      standard_condition == 4 ~ c4donatemon,
+      standard_condition == 5 ~ c5donatemon,
+      standard_condition == 6 ~ c6donatemon
+    )
+  ) %>% filter(!is.na(investdonate)) %>%
+  mutate(
+    respleader = case_when(
+      standard_condition == 1 ~ c1respleader,
+      standard_condition == 2 ~ c2respleader,
+      standard_condition == 3 ~ c3respleader,
+      standard_condition == 4 ~ c4respleader,
+      standard_condition == 5 ~ c5respleader,
+      standard_condition == 6 ~ c6respleader
+    )
+  ) %>% filter(!is.na(respleader)) %>%
+  mutate(
+    hirepres = case_when(
+      standard_condition == 1 ~ c1hirepres,
+      standard_condition == 2 ~ c2hirepres,
+      standard_condition == 3 ~ c3hirepres,
+      standard_condition == 4 ~ c4hirepres,
+      standard_condition == 5 ~ c5hirepres,
+      standard_condition == 6 ~ c6hirepres
+    )
+  ) %>% filter(!is.na(hirepres))
+
+data_clean_hs = data_clean_hs %>% 
+  mutate(mreselfish_re = 8 - mreselfish) %>%
+  mutate(
+    standard_evalu_4items=(moreresp+moreupstan+mreselfish_re+orgbintere)/4,
+    standard_evalu_5items=(moreresp+moreupstan+mreselfish_re+orgbintere+investdonate)/5,
+    standard_evalu_7items=(moreresp+moreupstan+mreselfish_re+orgbintere+investdonate + hirepres + respleader)/7
+  ) %>% 
+  mutate(
+    standard_organization = case_when(
+      standard_condition <= 3 ~ 0,
+      standard_condition >= 4 ~ 1
+    ),
+    standard_compensation = case_when(
+      standard_condition <=3 ~ standard_condition,
+      standard_condition >=4 ~ standard_condition - 3,
+    )
+  )
+
+data_clean_hs = data_clean_hs %>% 
+  select(c("datacollection", "standard_condition",
+           colnames(data_clean_hs)[78:92],
+           demo_cols))
+write.csv(data_clean_hs, "./clean_for_analysis/10_higher_standard.csv")
+```

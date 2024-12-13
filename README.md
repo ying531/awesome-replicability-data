@@ -2,26 +2,45 @@
 <p> awesome-replicability-data
 </h1>
 
-This repository collects publicly available datasets for replicability analysis. Currently, we curate a collection of **paired** individual-level datasets of original and replication studies, and **one-sided** pairs with individual-level data for the replication study. 
+This repository collects publicly available datasets for replicability analysis. We curate a collection of **multi-site** individual-level replication studies, **paired** individual-level datasets of original and replication studies, and **one-sided** pairs with individual-level data for the replication study. 
 We are non-selective in collecting these datasets, i.e., both successful and failed studies are included as long as they are available. 
 
-This repository accompanies the paper "[Diagnosing the role of observable distribution shift in scientific replications](https://arxiv.org/abs/2309.01056)" by Ying Jin, Kevin Guo and Dominik Rothenhäusler. [[Reference](#reference)] 
+This repository accompanies papers:
+1.  "[Diagnosing the role of observable distribution shift in scientific replications](https://arxiv.org/abs/2309.01056)" by Ying Jin, Kevin Guo and Dominik Rothenhäusler. [[Reference](#reference)] 
+2. "[Beyond reweighting: On the predictive role of covariate shift in effect generalization](https://arxiv.org/abs/2412.08869)" by Ying Jin, Naoki Egami and Dominik Rothenhäusler. [[Reference](#reference2)] [[Replication code](https://github.com/ying531/predictive-shift)]
 
-<span style="color:#C0392B;">Please feel free to contact us at `ying531[at]stanford[dot]edu`, or open an issue if you have suggestions for replication datasets not collected here!</span>
+
+
+:bulb: **Update Dec 2024**: Accompanying our new "Beyond" paper, we update with newly included processing scripts for two large-scale, multi-site replication studies, the Pipeline project and the ManyLabs 1 project! 
+
+<span style="color:#C0392B;">Please feel free to contact us at `yjin[at]hcp[dot]med[dot]harvard[dot]edu`, or open an issue if you have suggestions for replication datasets not collected here!</span>
 
 ### Related resources
 
-**R package.** Our R package [repDiagnosis](https://github.com/ying531/repDiagnosis) provides statistical tools for estimating the contribution of observable distribution shifts in replication studies, such as covariate difference and mediation shifts. Paired data 1, 3, 8 below are cleaned and pre-loaded in the R package for use. 
+**Reproduction code.** The reproduction code for the analysis of distribution shift and generalization in two new multi-site, multi-hypothesis replication projects in the new [Paper 2]() is available at a separate GitHub repository [[predictive-shift](https://github.com/ying531/predictive-shift)].
 
-**Interactive diagnosis app.** Play with our interactive analysis tools in our [online R shiny app](https://mbzlnj-ying-jin.shinyapps.io/shiny/)! Quick start with pre-loaded datasets in the app (datasets 1, 3, 8 below). You can also diagnose your own replication study, or probe the generalizability of your single study.
+**R package.** Also accompanying [Paper 1](https://arxiv.org/abs/2309.01056), our R package [repDiagnosis](https://github.com/ying531/repDiagnosis) provides statistical tools for estimating the contribution of observable distribution shifts in *paired* replication studies, such as covariate difference and mediation shifts. Paired data 1, 3, 8 below are cleaned and pre-loaded in the R package for use. 
 
-**Example analysis.** We provide in `analysis.html` a analysis report for other datasets that we did not elaborate on in our paper. 
+**Interactive diagnosis app.** Play with our interactive analysis tools based on [Paper 1](https://arxiv.org/abs/2309.01056) in our [online R shiny app](https://mbzlnj-ying-jin.shinyapps.io/shiny/)! Quick start with pre-loaded datasets in the app (datasets 1, 3, 8 below). You can also diagnose your own replication study, or probe the generalizability of your single study.
+
+**Example diagnosis.** We provide in `analysis.html` an analysis report for other paired studies not elaborated in the "diagnosing" [Paper 1](https://arxiv.org/abs/2309.01056). 
 
 ## Contents 
 
-**1. Complete, paired datasets.** [Data list](#list_paired), [Data details](#detail_paired). 
+**1. Multi-site, multi-hypothesis datasets.** [Data list](#list_multi_site), [Data details](#detail_multi_site)
 
-**2. One sided datasets.** [Data list](#list_oneside), [Data details](#detail_oneside).
+**2. Complete, paired datasets.** [Data list](#list_paired), [Data details](#detail_paired). 
+
+**3. One sided datasets.** [Data list](#list_oneside), [Data details](#detail_oneside).
+
+## List of multi-site, multi-hypothesis replication datasets <a name="list_multi_site"></a>
+
+
+
+| Name | Original paper | Original data/repo| Processing code |
+|:-------------|:----:|:-----------:|:----:| 
+| 1. [Pipeline](#pipeline) | [Schweinsberg, et al., 2016](https://www.sciencedirect.com/science/article/pii/S0022103115300019) | [OSF link](https://osf.io/q25xa/)  | [Folder link](host_data_paired/covid_study/)  |
+| 2. [ManyLabs1](#manylabs1) | [Klein, et al., 2014](https://psycnet.apa.org/record/2012-34989-001)  |   [OSF link](https://osf.io/wx7ck/) | [Folder link](host_data_paired/empathy_ses/)|
 
 ## List of complete, paired datasets <a name="list_paired"></a>
 
@@ -58,7 +77,20 @@ Below we collect one-sided original-replication study pairs, i.e., where the rep
 | 4. [Priming and exercise](#primeexcer) | [Pottratz, et al., 2021](https://academic.oup.com/abm/article/55/2/112/5850835?login=true) |  [Timme, et al., 2022](https://journals.humankinetics.com/view/journals/jsep/44/4/article-p286.xml) | [OSF link](https://osf.io/qtvyb/) | [Folder link](/host_data_oneside/prime_exercise/) |
 
 
+## Details of multi-site, multi-hypothesis studies <a name="detail_multi_site"></a>
 
+#### 1. <a name="pipeline"></a> Pipeline project dataset
+
+- *Background*. The Pipeline project is a pre-publication, pre-registered collaborative project where 25 labs across the world replicate 10 experiments on various moral judgement effects. In our analysis, we focus on the replicability of estimates of the average treatment effects either with a two-group t-test or a paired t-test. 
+- *Experiment protocols*. Replicator labs were explicitly selected for their expertise and access to subject populations that were theoretically expected to exhibit the original effects. All teams consistently follow the same experimental protocol with locally recruited participants, recording the same set of variables. This provides opportunities to study variation of results, especially unexpected distribution shifts, given these controlled conditions. 
+
+#### 2. <a name="manylabs1"></a> ManyLabs1 dataset
+
+- *Background*. The ManyLabs1 project is a renowned pre-registered collaborative project where 36 labs replicate 13 experiments in psychological science, with a total of more than 6000 participants. In our analysis, we focus on the replicability of estimates of the average treatment effects  with a two-group t-test. 
+- *Experiment protocols*. Replicator labs voluntarily participate in the project. All teams consistently follow the same experimental protocol with locally recruited participants, recording the same set of variables. Here, sites were selected conveniently but ``naturally'' without explicit intention.  
+
+
+#### 1. <a name="manylabs1"></a> ManyLabs1 project dataset
 
 ## Details of paired studies and datasets <a name="detail_paired"></a>
 
@@ -202,7 +234,7 @@ There are two multi-lab replications. Hagger, et al., [2016] failed, but Dang, e
 
 #### 2. <a name="paintole"></a> Pain-tolerance metaphor dataset
 
-- *Background*.   This study investigates the impact of common physical properties (such as 'cond') within a perseverance metaphor on increasing pain tolerance. Participants completed a cold pressor task before and after a randomly allocated intervention of metatphor exercise.
+- *Background*.   This study investigates the impact of common physical properties (such as 'cond') within a perseverance metaphor on increasing pain tolerance. Participants completed a cold pressor task before and after a randomly allocated intervention of metaphor exercise.
 
 - *Sample sizes*.  The original study had n = 87. The replication study had N = 89.
 
@@ -236,15 +268,24 @@ There are two multi-lab replications. Hagger, et al., [2016] failed, but Dang, e
 - *Results*. The conclusion in the original study was not successfully replicated. The replication report emphasized potential heterogeneity among people as a potential factor for the failure.
 
 
-### Reference  <a name="reference"></a>
+### Reference  
 
 Please use the following citation if you use this collection in your study, or you use our softwares for analyzing replication studies.
-
+<a name="reference"></a>
 ```
 @article{jin2023diagnosing,
   title={Diagnosing the role of observable distribution shift in scientific replications},
   author={Jin, Ying and Guo, Kevin and Rothenh{\"a}usler, Dominik},
   journal={arXiv preprint arXiv:2309.01056},
   year={2023}
+}
+```
+<a name="reference2"></a>
+```
+@article{jin2024beyond,
+  title={Beyond reweighting: On the predictive role of covariate shift in effect generalization},
+  author={Jin, Ying and Egami, Naoki and Rothenh{\"a}usler, Dominik},
+  journal={arXiv preprint arXiv:2412.08869},
+  year={2024}
 }
 ```
